@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { dataService } from "@/services/dataService"
 import { configureSimulation, isoAtMinutesOfSelectedDay } from "@/lib/simulationConfig"
 import { isApiMode } from "@/services/api-client"
+import type { ApiMeta } from "@/types/api"
 
 type TimeContextValue = {
   selectedTime: number
@@ -10,7 +11,9 @@ type TimeContextValue = {
   timeLabel: string
   isReady: boolean
   timeError: string | null
+  demoTimes: ApiMeta["demo_times"]
   setSelectedTime: (minutes: number) => void
+  selectDemoTime: (time: string) => void
 }
 
 const TimeContext = createContext<TimeContextValue | null>(null)
@@ -63,15 +66,24 @@ export function TimeProvider({ children }: { children: ReactNode }) {
     initialized.current = true
   }, [meta])
 
-  const updateSelectedTime = (minutes: number) => {
+  const updateSelectedTime = useCallback((minutes: number) => {
     if (!selectedIsoTime) return
     setSelectedTime(minutes)
     setSelectedIsoTime((current) => isoAtMinutesOfSelectedDay(current, minutes))
-  }
+  }, [selectedIsoTime])
+
+  const selectDemoTime = useCallback((time: string) => {
+    if (!meta || supportedMinutes(time, meta.time_range.start, meta.time_range.end) === null) return
+    const minutes = minutesFromIso(time)
+    if (minutes === null) return
+    setSelectedTime(minutes)
+    setSelectedIsoTime(time)
+  }, [meta])
 
   const metadataError = meta && isApiMode ? validateCaliforniaMeta(meta) : null
   const timeError = metadataError ?? (metaQueryError instanceof Error ? metaQueryError.message : metaQueryError ? "Simulated-time metadata is unavailable." : null)
-  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: selectedIsoTime ? formatTime(selectedTime) : "Loading…", isReady: Boolean(meta && selectedIsoTime && !timeError), timeError, setSelectedTime: updateSelectedTime }), [meta, selectedIsoTime, selectedTime, timeError])
+  const demoTimes = meta?.demo_times ?? []
+  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: selectedIsoTime ? formatTime(selectedTime) : "Loading…", isReady: Boolean(meta && selectedIsoTime && !timeError), timeError, demoTimes, setSelectedTime: updateSelectedTime, selectDemoTime }), [demoTimes, meta, selectDemoTime, selectedIsoTime, selectedTime, timeError, updateSelectedTime])
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>
 }
 

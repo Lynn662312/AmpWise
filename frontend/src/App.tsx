@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom"
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { Bolt, CalendarDays, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Search, Settings, Sun, TrendingUp, WandSparkles, X } from "lucide-react"
+import { Bolt, CalendarDays, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Search, Settings, Sun, TrendingUp, X } from "lucide-react"
 import { EvStationIcon } from "@/components/icons/EvStationIcon"
 import { PlugIcon } from "@/components/icons/PlugIcon"
 import { NotificationBell } from "@/features/notifications/components/NotificationBell"
@@ -12,6 +12,7 @@ import { MetricCard } from "@/components/common/MetricCard"
 import { DataSourceBadge } from "@/components/common/DataSourceBadge"
 import { NetworkStatusCard } from "@/components/common/NetworkStatusCard"
 import { FeedbackPieCard } from "@/components/common/FeedbackPieCard"
+import { AppSelect } from "@/components/common/AppSelect"
 import { useTheme } from "@/theme/ThemeProvider"
 import { cn } from "@/lib/utils"
 import { MapPage } from "@/features/map/MapPage"
@@ -43,8 +44,6 @@ const navItems = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
   { label: "Map", to: "/map", icon: Map },
   { label: "Actions", to: "/actions", icon: ClipboardCheck },
-  { label: "What-if", to: "/what-if", icon: WandSparkles },
-  { label: "Stations", to: "/stations", icon: EvStationIcon },
   { label: "Results", to: "/results", icon: TrendingUp },
 ]
 
@@ -56,7 +55,7 @@ function AppShell() {
   useSystemHealth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
-  const { selectedTime, setSelectedTime, timeLabel, isReady, timeError } = useSimulatedTime()
+  const { selectedTime, setSelectedTime, selectedIsoTime, selectDemoTime, demoTimes, timeLabel, isReady, timeError } = useSimulatedTime()
   const { presentationMode } = useDemoMode()
 
   return (
@@ -82,7 +81,7 @@ function AppShell() {
           <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} /><span className="font-semibold text-foreground">Today</span></div>
           <div className="ml-auto flex items-center gap-2"><label className="hidden items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground md:flex">Simulated time <input type="range" min="0" max="1439" step="30" value={selectedTime} onChange={(event) => setSelectedTime(Number(event.target.value))} disabled={!isReady} className="w-28 accent-[var(--accent)] disabled:opacity-50" aria-label="Simulated time" /
           >
-            <span className="min-w-14 text-right text-foreground">{timeLabel}</span></label>
+            <span className="min-w-14 text-right text-foreground">{timeLabel}</span></label>{demoTimes.length > 1 && <AppSelect value={selectedIsoTime} onValueChange={selectDemoTime} options={demoTimes.map(({ label, time }) => ({ label, value: time }))} placeholder="Demo time" size="sm" className="hidden w-44 md:block" />}
             {/* <PresentationMenu /> */}
           <NotificationBell /><button className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button></div>
         </header>
