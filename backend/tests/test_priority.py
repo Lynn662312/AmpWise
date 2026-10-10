@@ -24,14 +24,25 @@ def test_order_is_safety_then_chargers_by_report_count_then_stations(data: DataS
     assert [a["issue_type"] for a in actions] == [
         "safety_fault", "degraded", "user_reported", "connector_fault",
         "chronic_undercapacity", "congestion", "congestion", "congestion", "underused",
+        "site_issue",
     ]
     # Charger maintenance: most driver reports first (two have 3 here, so money decides), then 0 reports.
     assert [a["report_count"] for a in actions[1:4]] == [3, 3, 0]
     assert actions[1]["rm_at_risk"] > actions[2]["rm_at_risk"]
     assert actions[1]["first_reported_at"] == datetime(2026, 3, 25, 10, tzinfo=MYT)
     # Station issues: most money at risk first.
-    money = [a["rm_at_risk"] for a in actions[4:]]
+    money = [a["rm_at_risk"] for a in actions[4:9]]
     assert money == sorted(money, reverse=True)
+
+
+def test_blocked_or_dirty_bay_is_a_site_issue_ranked_last(data: DataStore) -> None:
+    site = build_action_list(data, DAY_BEFORE_RAYA)[-1]
+
+    # stn_001_c2 works, but two drivers reported its bay; a technician cannot fix that.
+    assert site["id"] == "site_issue:stn_001:stn_001_c2"
+    assert site["recommended_action"] == "Needs human action"
+    assert (site["report_count"], site["rm_at_risk"], site["deadline"], site["urgency"]) == (2, 0.0, None, "low")
+    assert "2 drivers have reported a blocked or dirty bay since Wednesday 9am" in site["reason"]
 
 
 def test_charger_reported_by_drivers_but_not_by_sensors_gets_an_action(data: DataStore) -> None:
@@ -51,7 +62,8 @@ def test_more_driver_reports_rank_higher() -> None:
     none = {**charger, "issue_type": "connector_fault", "report_count": 0, "rm_at_risk": 9000.0}
     safety = {**charger, "issue_type": "safety_fault", "report_count": 0, "rm_at_risk": 1.0}
     station = {"charger_id": None, "issue_type": "congestion", "report_count": 0, "rm_at_risk": 50000.0}
-    assert sorted([station, none, few, many, safety], key=score_issue) == [safety, many, few, none, station]
+    site = {**charger, "issue_type": "site_issue", "report_count": 9, "rm_at_risk": 0.0}
+    assert sorted([site, station, none, few, many, safety], key=score_issue) == [safety, many, few, none, station, site]
 
 
 def test_driver_reports_support_a_sensor_fault(data: DataStore) -> None:
@@ -74,7 +86,7 @@ def test_broken_charger_costs_more_before_the_festive_peak(data: DataStore) -> N
     assert degraded["rm_at_risk"] > 0
     assert degraded["deadline"] is not None
     assert "Charger 1 at Seremban R&R" in degraded["reason"]
-    assert "41% of rated power" in degraded["reason"]
+    assert "Power at 41% of 7-day median" in degraded["reason"]
 
 
 def test_limit(data: DataStore) -> None:
@@ -116,6 +128,11 @@ def test_charger_health_endpoint_uses_data(real_client: TestClient) -> None:
 def test_meta_endpoint_uses_data(real_client: TestClient) -> None:
     body = real_client.get("/api/meta").json()
     assert body["time_range"] == {"start": "2026-03-16T00:00:00+08:00", "end": "2026-04-05T23:30:00+08:00"}
+
+
+def test_report_categories_endpoint_uses_data(real_client: TestClient, data: DataStore) -> None:
+    assert real_client.get("/api/reports/categories").json() == data.report_categories
+    assert len(data.report_categories) == 9
 
 
 def test_unknown_ids_are_not_found(real_client: TestClient) -> None:

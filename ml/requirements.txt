@@ -1,0 +1,3 @@
+# Only needed to re-run the ML-side scripts in ml/src/ (the backend does not need these).
+pandas>=2.2
+scikit-learn>=1.4

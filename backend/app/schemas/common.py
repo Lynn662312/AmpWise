@@ -9,6 +9,7 @@ class IssueType(str, Enum):
     congestion = "congestion"
     chronic_undercapacity = "chronic_undercapacity"
     underused = "underused"
+    site_issue = "site_issue"
 
 
 class ChargerStatus(str, Enum):

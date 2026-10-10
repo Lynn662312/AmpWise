@@ -80,6 +80,13 @@ def test_backtest(client: TestClient) -> None:
     assert res.json()["daily"]
 
 
+def test_report_categories(client: TestClient) -> None:
+    res = client.get("/api/reports/categories")
+    assert res.status_code == 200
+    assert res.json()[0] == {"category": "Blocked by non-EV", "count": 314, "percentage": 23.3}
+    assert round(sum(c["percentage"] for c in res.json())) == 100
+
+
 def test_missing_time_is_bad_request(client: TestClient) -> None:
     res = client.get("/api/stations")
     assert res.status_code == 400

@@ -3,6 +3,7 @@ from app.schemas.backtest import BacktestDay, BacktestResult
 from app.schemas.charger import ChargerHealth, PowerRatioPoint
 from app.schemas.common import ActionState, ChargerStatus, IssueType, Urgency, WaitLevel
 from app.schemas.meta import Assumptions, DemoTime, FestivePeriod, HealthCheck, Meta, TimeRange
+from app.schemas.report import ReportCategory
 from app.schemas.station import ForecastSlot, Station
 from app.schemas.whatif import WhatIfRequest, WhatIfResult
 
@@ -23,6 +24,7 @@ __all__ = [
     "IssueType",
     "Meta",
     "PowerRatioPoint",
+    "ReportCategory",
     "Station",
     "TimeRange",
     "Urgency",

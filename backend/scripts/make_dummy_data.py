@@ -51,6 +51,8 @@ FAULTS = {
 }
 
 
+REPAIR_AFTER_DAYS = 3  # what "really happened": each fault was repaired three days after it started
+
 # A charger that really broke on this day but whose sensors show nothing; only drivers noticed.
 UNDETECTED = {"stn_002_c4": date(2026, 3, 24)}
 
@@ -63,12 +65,16 @@ REPORTS = {
     "stn_001_c3": [(20, 13)],  # one report on a healthy charger: not enough for an action
 }
 
+# charger_id -> when drivers reported its bay as blocked or dirty (a technician cannot fix that)
+SITE_REPORTS = {"stn_001_c2": [(25, 9), (26, 10)]}
 
-def report_rows(reports: dict[str, list[datetime]]) -> pd.DataFrame:
+
+def report_rows(reports: dict[str, list[tuple[int, int]]], issue_type: str) -> pd.DataFrame:
     """user_reports.parquet: one row per driver report."""
-    return pd.DataFrame(
-        [{"charger_id": charger_id, "reported_at": when} for charger_id, times in reports.items() for when in times]
-    )
+    return pd.DataFrame([
+        {"charger_id": charger_id, "reported_at": datetime(2026, 3, day, hour, tzinfo=MYT), "issue_type": issue_type}
+        for charger_id, times in reports.items() for day, hour in times
+    ])
 
 
 def _daily_shape(hour: float) -> float:
@@ -116,7 +122,11 @@ def health_rows(stations: list[dict], first_day: date, days: int, faults: dict, 
 
 
 def fault_labels(faults: dict) -> pd.DataFrame:
-    return pd.DataFrame([{"charger_id": c, "fault_type": f[0], "start_date": f[1]} for c, f in faults.items()])
+    """fault_labels.parquet: the real faults, each repaired REPAIR_AFTER_DAYS after it started."""
+    return pd.DataFrame([
+        {"charger_id": c, "fault_type": f[0], "start_date": f[1], "end_date": f[1] + timedelta(days=REPAIR_AFTER_DAYS)}
+        for c, f in faults.items()
+    ])
 
 
 def write_dummy_data(out_dir: str) -> None:
@@ -129,9 +139,10 @@ def write_dummy_data(out_dir: str) -> None:
     health_rows(STATIONS, START.date(), DAYS, FAULTS, rng).to_parquet(out / "health.parquet", index=False)
     undetected = {charger_id: ("undetected", day) for charger_id, day in UNDETECTED.items()}
     fault_labels({**FAULTS, **undetected}).to_parquet(out / "fault_labels.parquet", index=False)
-    reports = {c: [datetime(2026, 3, day, hour, tzinfo=MYT) for day, hour in times] for c, times in REPORTS.items()}
-    report_rows(reports).to_parquet(out / "user_reports.parquet", index=False)
+    reports = pd.concat([report_rows(REPORTS, "user_reported"), report_rows(SITE_REPORTS, "site_issue")])
+    reports.to_parquet(out / "user_reports.parquet", index=False)
     (out / "params.json").write_text(json.dumps(PARAMS, indent=2), encoding="utf-8")
+    (out / "report_categories.json").write_text(json.dumps(mock_data.REPORT_CATEGORIES, indent=2), encoding="utf-8")
     (out / "meta.json").write_text(json.dumps(META, indent=2, ensure_ascii=False), encoding="utf-8")
 
 

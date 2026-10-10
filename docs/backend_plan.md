@@ -10,9 +10,22 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 3 | Action list on parquet data | Done |
 | 4 | AI advice | Built, needs a real key |
 | 5 | What-if and backtest | Done |
-| 6 | Frontend integration (on dummy data) | Next |
-| 7 | ML integration (Colab outputs) | |
-| 8 | Deploy and optional extras | |
+| 6 | Frontend integration (on ML's real data) | Next |
+| 7 | ML integration (Colab outputs) | Done |
+| 8 | Deploy, Firestore and optional extras | After Stage 6 |
+
+## What is left (updated 2026-10-10)
+
+The backend side of the ML integration is finished: 68 backend tests and 1 ML test pass, and the server runs on ML's real files. What remains, in order:
+
+1. [x] Commit this work: committed and pushed on the branch `ml-integration`. Next: open a pull request into `main`.
+2. [ ] Frontend integration (Stage 6): bring the frontend branch and this branch together, switch the frontend to the live API, and close the gaps listed there.
+3. [ ] Team decisions that change the numbers: revenue per session (placeholder USD 10), tolerable wait (45 minutes), demo times, the backtest week.
+4. [ ] Business meeting: confirm how site issues and payment complaints are handled.
+5. [ ] Ask ML for both deliveries built from the same chargers. Until then a faulty charger barely moves the queue, so money at risk and the backtest gain stay near zero.
+6. [ ] AI advice: pick the provider and put a real key in `backend/.env` (Stage 4).
+7. [ ] Firestore: action status and saved what-if runs (Stage 8). Firebase setup instructions still have to be written for this step.
+8. [ ] Deploy backend and frontend, then run the full demo twice (Stage 8).
 
 ## How to run and test (any stage)
 
@@ -24,7 +37,9 @@ pytest -v
 uvicorn app.main:app --reload
 ```
 
-Then open `http://localhost:8000/docs` and use "Try it out". Use `2026-03-26T14:00:00+08:00` wherever `time` or `start` is asked.
+Then open `http://localhost:8000/docs` and use "Try it out". Wherever `time` or `start` is asked: with `MOCK=1` use `2026-03-26T14:00:00+08:00`; with `MOCK=0` (ML's real data) use a demo time such as `2020-02-25T07:00:00-08:00`.
+
+If `pytest` stops with `ModuleNotFoundError: No module named 'anthropic'` (or another package), the virtual environment is not active: the prompt must start with `(.venv)`. Run `.\.venv\Scripts\activate` first, or call it directly with `.\.venv\Scripts\python.exe -m pytest -v`.
 
 First time on a new machine: `py -3.12 -m venv .venv`, activate it, then `pip install -r requirements.txt`. In VS Code, run "Python: Select Interpreter" and pick `backend\.venv`, otherwise the editor reports `Import "fastapi" could not be resolved`.
 
@@ -65,7 +80,7 @@ In plain words: the maths that turns "cars arriving" into "minutes of waiting", 
 - [x] `app/services/classifier.py` — `classify_station`, `classify_charger`, `working_chargers`
 - [x] `tests/test_data_and_classifier.py`
 
-How to test: `pytest -v` shows 28 passed. `python -m scripts.make_dummy_data` writes the dummy files to `ml/outputs/` (git-ignored).
+How to test: `pytest -v` shows 28 passed. `python -m scripts.make_dummy_data` writes the dummy files to `DATA_DIR`. That is now `backend/data/`, which holds ML's real converted files, so only run it if you want the dummy data back; `git restore backend/data` undoes it.
 
 Assumptions to confirm with the team:
 
@@ -85,19 +100,22 @@ In plain words: find the problems, put a ringgit value on each, sort them, and w
 - [x] `/api/meta`, `/api/stations`, `/api/stations/{id}/forecast`, `/api/chargers/{id}/health`, `/api/actions` use parquet data when `MOCK=0`
 - [x] `tests/test_priority.py` — ordering, ids, endpoints on the dummy data, `/api/actions` under 1 s
 
-How to test: `pytest -v` shows 38 passed. Then run `python -m scripts.make_dummy_data`, set `MOCK=0` in `backend/.env`, start the server and call `/api/actions` with the two demo times: "Normal Tuesday" gives 2 actions, "Day before Raya exodus" gives 7 with the safety fault first.
+How to test: `pytest -v` shows 38 passed. Then run `python -m scripts.make_dummy_data`, set `MOCK=0` in `backend/.env`, start the server and call `/api/actions` with the two demo times: "Normal Tuesday" gives 2 actions, "Day before Raya exodus" gives 10 with the safety fault first and the site issue last. (These two times are for the dummy data.)
 
 Ranking, updated to include driver reports:
 
 1. Safety faults.
 2. Charger maintenance, whether the charger's own sensors found it or drivers reported it: most driver reports first, because more reports means more people affected. Ties go to the most money at risk.
 3. Station issues (congestion, capacity, underuse), most money at risk first.
+4. Site issues (a blocked or dirty bay), most driver reports first.
 
 A charger that drivers reported but whose sensors show no fault becomes a `user_reported` action ("Inspect charger"); it needs 2 or more reports in the last 7 days. Reports on a charger the sensors already flag raise that action's report count and are not listed twice. Each action carries `report_count` and `first_reported_at` for the frontend to show.
 
-Reports come from `user_reports.parquet` (ML). ML has not sent the field names for sensor results, fault dates or driver reports yet, so the dummy data and the converter write placeholders; the converter is the one place to adapt when their names arrive.
+A `site_issue` action ("Needs human action") is for reports a technician cannot fix: 2 or more reports in the last 7 days that the bay is blocked or dirty. It has no money value and no deadline, and it is counted separately from the charger reports above. When an AI key is added, `POST /api/actions/{id}/advice` gives recommendations for it like for any other action.
 
-What needs storing: nothing from the ML files (report times, sensor results, forecasts are read-only and served through the API). Only what people change in the app needs storing: the maintenance status of an action and when it changed. That is Stage 8 (`PATCH /api/actions/{id}/status`), in memory first and Firestore at deploy.
+Reports come from `user_reports.parquet`, which the converter writes from ML's cleaned feedback, `feedback_clean.csv` (Stage 7 has the rule). The converter is the one place where ML's names and categories are turned into ours.
+
+What needs storing: see the table in Stage 8. In short, nothing from the ML files; only what people change in the app.
 
 Assumptions to confirm with the team:
 
@@ -142,25 +160,44 @@ In plain words: show that following our list beats the usual way of working.
 
 How to test: `pytest -v` shows 56 passed. With `MOCK=0`, fixing `stn_003_c1` at the "Day before Raya exodus" time lowers the wait and raises revenue, and `/api/backtest` shows `queue_minutes_saved` above zero.
 
-How the backtest works (assumptions to confirm with the team):
+How the backtest works (reworked for ML's real faults; assumptions to confirm with the team):
 
 - It replays 7 days, starting the day before the first real fault in the data. The `week` parameter is accepted but not used yet.
-- One technician repairs one charger per day; the charger works again the next day.
-- Baseline: a fault is known when the first driver reports it, and faults are fixed first come, first served.
-- Ours: a fault is known the day the sensors flag it, or on its second driver report, and faults are fixed in action-list order.
+- Baseline is what really happened: each charger is down from the day its fault starts to the day it was really repaired (`end_date` in `fault_labels.parquet`, ML's `end`).
+- Ours: a fault is known the day the sensors flag it, or on its second driver report during the fault. One technician repairs one known fault per day, in action-list order, and the charger works again the next day.
+- A fault we never notice still ends on its real repair day, so ours is never worse than the baseline.
+- Every real fault counts as "charger down", including the ones only drivers can see (damaged cable, blocked bay).
+- A file without `end_date` (the dummy data has one, three days after each fault starts) is treated as "not repaired within the week".
 - Rerouting drivers to other stations is not simulated.
 - Forecast error compares the model and "same slot last week" against `arrivals_actual`.
-- Precision and recall compare the chargers the health model flagged with `fault_labels.parquet`.
+- Precision and recall compare the chargers the sensors flagged with the chargers in `fault_labels.parquet`.
 
 What-if looks 72 hours ahead; revenue is the sessions that actually charge × revenue per session.
 
-## Stage 6 — Frontend integration (before ML, on dummy data)
+## Stage 6 — Frontend integration (on ML's real data) — Next
 
-- [ ] Frontend switches from `MOCK=1` to `MOCK=0` with the dummy parquet
+In plain words: the frontend stops reading its own sample files and asks the backend instead.
+
+The frontend is on the branch `gy-fe-branch`. It already has a switch: `VITE_DATA_MODE=mock` reads the JSON files in `frontend/src/data/`, `VITE_DATA_MODE=api` calls the backend. Its action list already expects `report_count` and `first_reported_at`.
+
+Steps:
+
+- [ ] Commit and push this branch, then bring it and `gy-fe-branch` together (merge both into `main`, or merge one into the other). The frontend folder on this branch is empty, so the merge should not conflict there
+- [ ] Backend: `MOCK=0` in `backend/.env`, then `uvicorn app.main:app --reload`
+- [ ] Frontend: in `frontend/.env` set `VITE_API_BASE_URL=http://localhost:8000/api` and `VITE_DATA_MODE=api`, then `npm install` and `npm run dev`
 - [ ] Check CORS from `http://localhost:5173`; walk every page together
 - [ ] Fix mismatches by changing `docs/api_contract.md` first, then code
 
-## Stage 7 — ML integration (when Colab outputs are ready)
+Gaps found by reading `gy-fe-branch` (as last fetched on 2026-10-10), to close during the walkthrough:
+
+- [ ] Frontend: add `site_issue` to its `IssueType` and to `issueConfig.ts` (label "Needs human action"). Without it, a site issue in the action list has no badge and can break the page
+- [ ] Frontend: the pie chart (`FeedbackPieCard`) still reads the local `feedback.json` with satisfaction levels. Point it at `GET /api/reports/categories`, which returns the same shape (`category`, `percentage`, plus `count`)
+- [ ] Decide together: in API mode the frontend has no list of chargers for a station (its charger pickers are empty), because the contract has no such endpoint. The what-if "fix now" scenario and the charger page need a charger id. Either add `GET /api/stations/{id}/chargers` to the contract, or pick chargers from the action list only
+- [ ] Decide together: the dashboard cards (energy delivered, live sessions, network uptime) have no endpoint in the contract. Either drop them in API mode or agree on what they should show
+- [ ] `PATCH /api/actions/{id}/status` is not built (Stage 8), so keep `VITE_ACTION_STATUS_ENABLED=false`
+- [ ] Use the real demo times from `/api/meta` (2020-02-23 and 2020-02-25, 07:00); the frontend's sample files use other dates
+
+## Stage 7 — ML integration — Done
 
 ML trains in Colab and exports result files. The backend only reads those files, never the notebook or the model.
 
@@ -168,41 +205,91 @@ The data is US (ACN dataset, California): test window 2019-12-01 to 2020-02-29, 
 
 How to bring ML's files in:
 
-1. ML pushes its files to `ml/output/` on `main` (`model1_test_predictions.csv`, `model1_metrics.json`, `station_profile.csv`). Merge `main` into your branch to get them.
-2. From `backend`: `python -m scripts.convert_ml_outputs`, then `python -m scripts.check_data`.
-3. Restart the server with `MOCK=0`.
+1. ML pushes its files to `ml/output/` on `main`: the forecast files (`model1_test_predictions.csv`, `station_profile.csv`) and the `acn_synth/` folder (chargers, sensor log, real faults, driver feedback). Merge `main` into your branch to get them.
+2. `acn_synth/ocpp_events.csv` (39 MB) is not in git. Whoever runs the converter needs it from the ML team; nobody else does.
+3. Clean the driver feedback (only when `feedback.csv` changed). From the repo root: `pip install -r ml/requirements.txt` once, then `python ml/src/preprocessing/clean_feedback.py`. It writes `ml/output/acn_synth/feedback_clean.csv`; commit that file.
+4. From `backend`: `python -m scripts.convert_ml_outputs`, then `python -m scripts.check_data`.
+5. Commit the changed files in `backend/data/`. Teammates and the deployed server then get the data with a normal `git pull`.
+6. Restart the server with `MOCK=0`.
 
-Two folders with similar names: `ml/output/` is ML's (in git); `ml/outputs/` is what the backend reads (`DATA_DIR`, git-ignored, written by the converter). To go back to the dummy data, run `python -m scripts.make_dummy_data`.
+Folders: `ml/output/` is ML's (in git). `backend/data/` is what the backend reads (`DATA_DIR=./data`): eight small files, about 125 KB, written by the converter and committed. The old `ml/outputs/` folder is no longer used and can be deleted. If your own `backend/.env` still says `DATA_DIR=../ml/outputs`, change it to `./data`.
 
-Status: ML's forecast files are converted and the backend runs on them (4 stations, 30 Nov 2019 to 29 Feb 2020). Sensor results, fault dates and driver reports are still placeholders.
+Status: the backend runs on ML's real files: 4 stations, 30 Nov 2019 to 29 Feb 2020, 23 chargers with sensors, 33 real faults, 176 charger reports and 63 site reports. `check_data` passes and `/api/actions` answers in about 0.15 s.
 
-Decided: holidays are no longer a focus. The converter uses ML's predictions as they are (no festive multiplier), the demo times are "Quiet Sunday" and "Weekday morning rush" (the busiest day in the data), and the backtest week starts the day before the first real fault.
+What `acn_synth` is: a simulated sensor log plus the list of real faults (the answer key). It is not the output of a second model, so there is no predicted status or probability to read. The converter works the status out from the charger's own messages. The field-by-field mapping is in `docs/api_contract.md` section 5.
 
-Where ML files go: everything from ML (forecast model, health model) goes in `ml/output/`, next to the existing files, and is committed. Notebooks go in `ml/notebooks/colab/`, saved models in `ml/model/`. Never put ML's files in `ml/outputs/`; that folder is generated.
+Decided (2026-10-10):
+
+- Sensor status comes from the charger's own `Faulted` messages in `ocpp_events.csv`. `p_fault` is 1 while the charger says it is faulted, else 0. ML's answer columns are never read.
+- Charger counts stay the forecast model's (54, 24, 4, 52) for the queue maths. The 23 chargers in `acn_synth` (6, 5, 2, 10) are the ones with sensors. North Wilson's 3 chargers are left out because it has no forecast.
+- A driver comment counts as a report when the ML cleaning step marks it `keep`: the comment itself reads as negative, and it is not spam. Charger categories (`Won't start`, `Slow charging`, `Cable stuck`, `Connector damaged`, `Screen broken`, and what is left of `Other`) feed `user_reported`. `Blocked by non-EV` and `Cleanliness` feed `site_issue`. `Payment issue` is left out of the action list.
+- Sentiment comes from the comment text, not from the star rating, because 139 comments are worded as complaints but carry 4 or 5 stars. `ml/src/preprocessing/clean_feedback.py` trains a small text model on the comments (the ratings are only the teaching examples), so two comments with the same wording always get the same sentiment. Checked against the wording of every comment, it gets all 1,659 right; a ready-made sentiment tool (VADER) got about 89%. Spam is a comment with fewer than 3 different words (`test`, `aaaaaa`, `.`): 31 rows, the same 31 ML marked. Noise rows are dropped one by one; the `Other` category is not dropped as a whole.
+- To look at the cleaned data, open `ml/output/acn_synth/feedback_clean.csv`: every original row, plus `sentiment`, `is_spam` and `keep` right after the comment. Of 1,690 rows, 1,347 are kept, 312 are positive and 31 are spam.
+- Cost of this rule, measured against ML's answer key: more real faults get 2 or more reports (18 of 33, against 12 with the earlier rating rule), but more flags are false (72% are backed by a real fault, against 92%), and about twice as many chargers show as "Inspect charger".
+- One row in `feedback.csv` is one report, with its own unique id, so reports are counted as they are. Repeats are not removed: dropping repeats within 10 minutes removed as many real reports from different drivers as true duplicates.
+- `end` in `fault_ground_truth.csv` is when the fault was really repaired. The backtest uses it as the baseline (Stage 5).
+- Pie chart of feedback categories: `GET /api/reports/categories` returns the count and percentage per category. The converter counts it once over all the `keep` rows (every charger, every date). Result: Blocked by non-EV 23.3%, Other 20.0%, Slow charging 19.5%, Won't start 14.8%, Cleanliness 7.9%, Payment issue 5.3%, Connector damaged 3.5%, Cable stuck 3.0%, Screen broken 2.7% (1,347 complaints).
+- Holidays are no longer a focus. The converter uses ML's predictions as they are (no festive multiplier), and the demo times are "Quiet Sunday" (2020-02-23 07:00) and "Weekday morning rush" (2020-02-25 07:00, the busiest day in the data). Both have charger actions and site issues to show.
+
+Where ML files go: everything from ML goes in `ml/output/`, next to the existing files, and is committed. Notebooks go in `ml/notebooks/colab/`, saved models in `ml/model/`. Never put ML's files in `backend/data/`; that folder is generated.
 
 What the real data shows:
 
 - Holidays are quiet. These are workplace garages, so demand peaks on weekday mornings around 7am and drops on holidays.
 - Capacity differs a lot: two garages have 54 and 24 chargers and almost never queue; South Wilson has 4; JPL has 52 but 222-minute sessions, so the model shows it over capacity at the morning peak.
-- Money at risk is small with the placeholder USD 10 per session.
-- The backtest shows almost no difference yet, because the placeholder faults sit on large garages in a quiet week. It needs the real fault data from the second ML model.
+- Money at risk for charger faults is close to zero. The two ML deliveries are on different scales (`acn_synth` is a 20% sample of the chargers), so one faulty charger among 54 barely moves the queue. Revenue per session is also still the placeholder USD 10.
+- Over the 89 days checked at 7am, the list showed a sensor fault on 40 charger-days, a driver-reported charger on 162 and a site issue on 44.
 
-- [x] `scripts/convert_ml_outputs.py` — reads ML's files with ML's own column names, converts UTC to California time, applies the assumed festive multiplier, takes charger count, power and charge time per station from `station_profile.csv`, and writes all the files the backend reads
-- [x] Run on ML's real forecast files; `check_data` passes; actions 0.3 s, stations 0.4 s
+Known limits:
+
+- Health is per day. A charger counts as faulty for the whole of every California day its fault touches, so at 7am the list can already show a fault that starts later that day.
+- After a sensor fault clears, the driver reports made during it still count for 7 days, so the charger can stay on the list as "Inspect charger" for a few days.
+- Power does not drop before a fault in this data (it follows how the cars charge), so the charger chart does not show a decline, and the reason for a `degraded` charger quotes the charger's own message instead of a power percentage.
+- The sentiment model only knows the wording in this data set. A comment in completely new words can be read wrongly, so it has to be re-run (and re-checked) when ML sends new feedback.
+- The backtest gain is small on this data: 14.6 queue minutes saved in its week (10 to 16 Dec 2019) and USD 0 protected. Over the whole three months it is 750 of about 199,000 queue minutes; the best week (from 3 Feb 2020) saves 435. The reason is the charger-count mismatch above, plus most faults being repaired within a day or two anyway. Of the 33 real faults we know 25 on the day they start and never notice 2.
+- Backtest precision is 1.0 because the status comes from the charger's own fault message; recall is 0.8 because the sensors cannot see the faults only drivers report.
+
+Done:
+
+- [x] `scripts/convert_ml_outputs.py` — reads ML's files with ML's own column names, converts UTC to California time, takes charger count, power and charge time per station from `station_profile.csv`, and writes all the files the backend reads
+- [x] Sensor results, real faults and driver reports now come from `acn_synth/`; the placeholders are gone
+- [x] Station coordinates come from `acn_synth/stations.csv` (the average of each station's chargers)
+- [x] New issue type `site_issue`, ranked last (contract v0.5)
+- [x] `scripts/check_data.py` — reports missing columns, unknown station or charger ids, slots that are not 30 minutes, unknown status values, and more sensor chargers than the station has
 - [x] Each station uses its own average charge time (`avg_charge_min` in `stations.parquet`)
-- [x] Decided: only `is_holiday` counts as festive; `near_holiday` is ignored
-- [x] Decided: ML's wait columns are not used, so their average charge time is not needed; the backend uses its own `avg_charge_min`
-- [ ] Tune the placeholders at the top of the script: station display names, coordinates, revenue per session, tolerable wait, demo times
-- [ ] Replace the placeholder charger faults and driver reports when ML delivers the sensor data (`health.parquet`, `fault_labels.parquet`) and the report data (`user_reports.parquet`)
-- [ ] Put the files in `DATA_DIR`, replacing the dummy ones
-- [x] `scripts/check_data.py` — run `python -m scripts.check_data ../ml/outputs` on ML's files; it reports missing columns, unknown station ids, slots that are not 30 minutes, timestamps not in `+08:00`, unknown status values and charger counts that do not match
-- [x] `time_range`, `festive_periods`, `demo_times` and `currency` in `/api/meta` now come from the data files (`meta.json`, written by the converter)
-- [ ] Check the numbers look sensible and re-run the frontend walkthrough
+- [x] `time_range`, `festive_periods`, `demo_times` and `currency` in `/api/meta` come from the data files (`meta.json`, written by the converter)
+- [x] Converted files written to `backend/data/`; the `DATA_DIR` default and `.env.example` point there
+- [x] Backtest reworked: baseline is the real repair day, several faults per charger
+- [x] Pie chart data: `GET /api/reports/categories`, written by the converter to `report_categories.json`
+- [x] Feedback cleaning on the ML side: sentiment from the comment text and spam removal (`ml/src/preprocessing/clean_feedback.py`, test in `ml/tests/`)
 
-## Stage 8 — Deploy and optional extras
+Still open after Stage 7 (also in "What is left" at the top):
 
-- [ ] Commit the final parquet and `params.json` into `backend/data/`; `DATA_DIR=./data` in production
+- [x] Commit `backend/data/`, `ml/output/acn_synth/feedback_clean.csv`, `ml/src/`, `ml/tests/` and `ml/requirements.txt` (on the branch `ml-integration`)
+- [ ] Lynn: review the cleaned feedback in `ml/output/acn_synth/feedback_clean.csv`. The cleaning is in `ml/src/preprocessing/clean_feedback.py`; which categories reach the action list is `REPORT_CATEGORIES` at the top of the converter
+- [ ] Decide: do the remaining `Other` complaints count as charger reports in the action list (as now), or only in the pie chart
+- [ ] Business meeting: confirm how site issues and payment complaints are handled (now: site issues are last in the action list, payment complaints appear only in the pie chart)
+- [ ] Team: the backtest week. It starts the day before the first real fault; a week with more faults (for example from 3 Feb 2020) shows a larger gain
+- [ ] Ask ML: both deliveries built from the same chargers, so a faulty charger has a visible effect on the queue
+- [ ] Tune the placeholders at the top of the converter: station display names, revenue per session, tolerable wait, demo times
+
+## Stage 8 — Deploy, Firestore and optional extras
+
+- [x] Commit the converted files in `backend/data/` (written in Stage 7; `DATA_DIR=./data` is already the default)
 - [ ] Render web service: root `backend/`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, env vars from contract section 7
 - [ ] Add the deployed frontend domain to `CORS_ORIGINS`; check `/api/health` on the live URL
-- [ ] Optional: `PATCH /api/actions/{id}/status`, `POST /api/demo/reset`, `/api/scenarios`, Firestore
+- [ ] Firebase setup instructions: create the project, turn on Firestore, download the service account key, set `FIREBASE_CREDENTIALS` (to write when this step starts)
+- [ ] `app/firebase/` and `PATCH /api/actions/{id}/status`, `POST /api/demo/reset`, `/api/scenarios` on Firestore
 - [ ] Run the full demo twice against the deployed backend
+
+What is stored where. The frontend only ever calls the backend API, on a teammate's machine and when deployed:
+
+| What the frontend shows | Where it comes from | Database? |
+| --- | --- | --- |
+| Stations, forecasts, charger health, action list, driver report counts, pie chart percentages | The files in `backend/data/`, loaded into memory when the server starts | No. They are read-only, the same for everyone, and deployed with the code |
+| A what-if simulation result | Calculated on request from the same files | No |
+| Saved what-if runs (`/api/scenarios`) | Someone clicking "save" | Yes: Firestore `scenarios` (to build) |
+| Action status: open, assigned, done | Someone clicking in the app | Yes: Firestore `actions_status` (to build) |
+| AI advice | The AI provider, cached | Optional: Firestore `advice_cache`, so it survives restarts |
+
+Firestore is needed for the "Yes" rows because free hosting puts the server to sleep and its memory is lost. Until it is built, those two features are not available; everything else already works without a database.

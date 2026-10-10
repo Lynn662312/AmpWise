@@ -76,8 +76,9 @@ def charger_health(data: DataStore, charger_id: str, time: datetime, days: int) 
     today = time.date()
     history = data.health[(data.health["charger_id"] == charger_id) & (data.health["date"] <= today)]
     window = history[history["date"] > today - timedelta(days=days)]
-    faulty_days = history[history["status"] != "healthy"]["date"]
-    is_faulty = latest["status"] != "healthy"
+    # A charger can recover and fail again, so "since" is the first faulty day after its last healthy one.
+    healthy_days = history[history["status"] == "healthy"]["date"]
+    faulty_days = history["date"] if healthy_days.empty else history[history["date"] > healthy_days.iloc[-1]]["date"]
     n_reports = len(recent_reports(data, charger_id, time))
     evidence = [*latest["evidence"], f"{n_reports} driver report(s) in the last 7 days"] if n_reports else latest["evidence"]
     return {
@@ -89,5 +90,5 @@ def charger_health(data: DataStore, charger_id: str, time: datetime, days: int) 
         "series": [
             {"date": row.date, "ratio": row.power_ratio, "baseline": row.baseline} for row in window.itertuples()
         ],
-        "degraded_since": faulty_days.iloc[0] if is_faulty else None,
+        "degraded_since": None if faulty_days.empty else faulty_days.iloc[0],
     }

@@ -1,0 +1,47 @@
+[
+  {
+    "category": "Blocked by non-EV",
+    "count": 314,
+    "percentage": 23.3
+  },
+  {
+    "category": "Other",
+    "count": 269,
+    "percentage": 20.0
+  },
+  {
+    "category": "Slow charging",
+    "count": 262,
+    "percentage": 19.5
+  },
+  {
+    "category": "Won't start",
+    "count": 199,
+    "percentage": 14.8
+  },
+  {
+    "category": "Cleanliness",
+    "count": 107,
+    "percentage": 7.9
+  },
+  {
+    "category": "Payment issue",
+    "count": 72,
+    "percentage": 5.3
+  },
+  {
+    "category": "Connector damaged",
+    "count": 47,
+    "percentage": 3.5
+  },
+  {
+    "category": "Cable stuck",
+    "count": 40,
+    "percentage": 3.0
+  },
+  {
+    "category": "Screen broken",
+    "count": 37,
+    "percentage": 2.7
+  }
+]
