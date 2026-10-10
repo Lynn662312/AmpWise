@@ -219,8 +219,9 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 - [x] v0.8 / v0.9：充电桩日志 `GET /api/chargers/{id}/events`；what-if 等待时间改用平均值；风险收入改按占用规则（所有桩都被占用时到达的车才算服务不了）/ charger log endpoint; what-if wait is the average wait; revenue at risk follows the occupancy rule (a car is unserved only when every charger is busy) — **已完成 Done**（在 `final` 分支，待合并 / on `final`, to be merged）
 - [x] v0.7：前端不再需要样例数据：`GET /api/stations/{id}/chargers`（站内充电桩列表）、`GET /api/overview?time=`（真实的电量、在线车辆、可用率）、`meta.backtest_weeks`（可选回测周）/ v0.7: the frontend no longer needs sample data: charger list per station, real overview totals, selectable backtest weeks — **已完成 Done**
 - [x] 后端已部署到 Render / backend deployed on Render — **已完成 Done**（推送后才会更新到最新代码 / it updates to the latest code after a push）
-- [ ] （可选）`app/firebase/`：`actions_status` 读写 + `PATCH /api/actions/{id}/status` / (optional) Firestore action status
-- [ ] 部署到 Render，环境变量放 Firebase 凭证 / deploy to Render, Firebase credentials in env vars
+- [x] （可选）`app/firebase/`：`actions_status` 读写 + `PATCH /api/actions/{id}/status` / (optional) Firestore action status — **已完成 Done**
+- [x] v1.0：标记完成的充电桩重新算作可用；`POST /api/demo/reset`（重置演示）；`POST` / `GET /api/scenarios`（保存 what-if 结果）/ v1.0: a charger marked done counts as working again; demo reset; saved what-if runs — **已完成 Done**（在 `sleep` 分支，合并后才上线 / on the branch `sleep`, live after the merge）
+- [x] 部署到 Render，环境变量放 Firebase 凭证 / deploy to Render, Firebase credentials in env vars — **已完成 Done**
 - [ ] 和前端一起跑完整演示两次 / run the full demo twice with the frontend
 
 ## 前端待办清单 / Frontend to-do checklist

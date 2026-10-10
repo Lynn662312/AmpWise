@@ -4,13 +4,17 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.9 · 2026-10-11
+Version: v1.0 · 2026-10-11
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
 > - **Money:** USD. Field names keep the `rm_` prefix for now (`rm_at_risk`, `rm_per_session`, …); read the currency from `meta.currency`.
 > - **Festive:** no longer a focus. `is_festive` and `meta.festive_periods` still exist and only label US public holidays (ML's `is_holiday`); no demand multiplier is applied. The demo is about the weekday morning rush.
-> - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). The field names and shapes are still correct.
+> - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). They are kept on purpose: they are exactly what mock mode (`MOCK=1`) returns. The field names and shapes are the same on the real data.
+>
+> **v1.0 — the optional parts are built: marking done changes the numbers, demo reset, saved what-if runs.**
+> - A charger action marked `done` makes that charger count as working again (station numbers, waits, the other actions' money). See `PATCH /api/actions/{action_id}/status`.
+> - `POST /api/demo/reset` and `POST` / `GET /api/scenarios` exist. There is no login, so anyone who can reach the API can call them; see "No login" in section 6.
 >
 > **v0.6 — money comes from charger capacity, not from waiting time.**
 > - The 45-minute "drivers give up" assumption is gone, and `max_tolerable_wait_min` no longer exists anywhere.
@@ -40,11 +44,11 @@ Version: v0.9 · 2026-10-11
 | --- | --- |
 | Base URL | Dev: `http://localhost:8000/api` · Prod: frontend reads `VITE_API_BASE_URL` |
 | Format | JSON, `snake_case` field names |
-| Time | ISO 8601 with offset, Malaysia time: `2026-03-30T14:00:00+08:00` |
+| Time | ISO 8601 with the station's own offset: `2020-01-10T07:00:00-08:00` on the current data (v0.3) |
 | Slots | 30 minutes |
 | `time` param | The simulated "now" for the demo. Required on every data endpoint. Must be inside `meta.time_range`. |
 | IDs | Station `stn_001` · Charger `stn_001_c1` · Action `{issue_type}:{station_id}:{charger_id or "-"}` (stable across calls) |
-| Money | RM, number with 2 decimals |
+| Money | Number with 2 decimals, in `meta.currency` (USD on the current data; the field names keep `rm_`) |
 | Minutes | number, 1 decimal |
 | Mock mode | Backend env `MOCK=1` → every endpoint returns the examples in this file |
 | AI key | Lives only in backend `.env` (`LLM_API_KEY`). Never in frontend code. |
@@ -397,18 +401,31 @@ Rules for the backend (judges will ask how the AI is controlled):
 
 ### PATCH `/api/actions/{action_id}/status`
 
-Body: `{ "state": "assigned" | "done" }` → Response `200`: `Action` (updated). Stored in Firestore `actions_status/{action_id}`. A charger action marked `done` counts as working again in later calls.
+Body: `{ "state": "assigned" | "done" }` → Response `200`: `Action` (updated). Stored in Firestore `actions_status/{action_id}`. `404` for an action id that was never listed.
 
-### POST `/api/demo/reset`
+A charger action marked `done` counts as working again in later calls (v1.0):
 
-Clears all `actions_status` (and optionally `scenarios`) so every demo run starts clean. Does **not** clear the advice cache.
-Body: `{ "clear_scenarios": false }` → Response `200`: `{ "cleared_actions": 3, "cleared_scenarios": 0 }`
+- The charger is `healthy` in `/api/stations/{id}/chargers`, and the station's `n_working`, waits and forecast include it. The other actions at that station are valued with it working.
+- The action itself stays in `/api/actions` with `state: "done"` and the reason and `rm_at_risk` it had before the repair. It no longer counts in the station's `open_issue_count`.
+- `/api/chargers/{id}/health` and `/events` do not change: they show what the sensors reported.
+- Moving the action back to `assigned` undoes this.
 
-### POST `/api/scenarios` · GET `/api/scenarios`
+An action id carries no date, so a state is kept for that charger and issue type at every simulated time. `POST /api/demo/reset` puts everything back.
+
+### POST `/api/demo/reset` (v1.0)
+
+Clears all `actions_status` (and optionally `scenarios`) so every demo run starts clean: every action is `open` again and no charger counts as repaired. Does **not** clear the advice cache.
+Body (optional): `{ "clear_scenarios": false }` → Response `200`: `{ "cleared_actions": 3, "cleared_scenarios": 0 }`
+
+### POST `/api/scenarios` · GET `/api/scenarios` (v1.0)
 
 Save / list what-if runs.
 POST body: `{ "name": "Fix Seremban before Raya", "request": WhatIfRequest, "result": WhatIfResult }` → `201` with `{ "id": "...", ...same }`.
 GET → list, newest first.
+
+`name` is 1 to 80 characters. At most 30 runs are kept: a `POST` beyond that answers `400 bad_request` until the demo is reset with `clear_scenarios: true`.
+
+Without `FIREBASE_CREDENTIALS` these three routes and `PATCH .../status` answer `500` "Firestore is not configured". In mock mode (`MOCK=1`) they answer without storing anything.
 
 ### ★ POST `/api/whatif`
 
@@ -542,6 +559,8 @@ What needs storing and what does not (v0.4):
 | Driver report count and time, sensor status and evidence, forecasts | ML files, served through the API | No, read-only |
 | Maintenance status (open / assigned / done) and when it changed | Someone clicking in the app | Yes: `actions_status`, with `updated_at` |
 
+**No login (v1.0).** The project has no accounts, so the three writing routes (`PATCH .../status`, `POST /api/demo/reset`, `POST /api/scenarios`) are open to anyone who can reach the API. What limits the damage: a state can only be `assigned` or `done`, and only on an action the API has listed; a saved run is checked field by field and the collection is capped at 30; a demo reset puts everything back. That is enough for a demo, not for a real operator: before a real launch these routes need a login. Setting `VITE_ACTION_STATUS_ENABLED=false` hides the buttons but does not close the routes.
+
 `firebase/firestore.rules` — deny all client access, because there is no login:
 
 ```
@@ -567,7 +586,7 @@ service cloud.firestore {
 | backend | `FIREBASE_CREDENTIALS` | path or JSON of service account (secret) |
 | frontend | `VITE_API_BASE_URL` | `http://localhost:8000/api` |
 | frontend | `VITE_DATA_MODE` | `api` (call the backend) or `mock` (local sample files) |
-| frontend | `VITE_ACTION_STATUS_ENABLED` | `true` once `PATCH /api/actions/{id}/status` is live with Firestore, else `false` |
+| frontend | `VITE_ACTION_STATUS_ENABLED` | `true` when the backend has `FIREBASE_CREDENTIALS`: shows assign / mark done, "Reset demo" and the saved what-if runs. Else `false` |
 
 ---
 
@@ -575,6 +594,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-11 | v1.0 a charger action marked `done` counts as working again (it was written here but not built); `POST /api/demo/reset` and `POST` / `GET /api/scenarios` built, with a name length and a cap of 30 saved runs; "No login" note in section 6; `VITE_ACTION_STATUS_ENABLED` also switches reset and saved runs | |
 | 2026-10-11 | v0.9 served and unserved sessions follow charger occupancy (a car is unserved only when every charger is busy), replacing the per-half-hour capacity rule of v0.6; `WhatIfResult` gains `before_at_risk_rm` and `after_at_risk_rm` | |
 | 2026-10-11 | v0.8 new `GET /api/chargers/{charger_id}/events` and `charger_events.parquet`; what-if wait fields are now the average wait over 72 hours, not the peak | |
 | 2026-10-11 | v0.7 new `GET /api/stations/{station_id}/chargers`; `GET /api/overview` now takes `time` and returns real totals (`energy.parquet`, `sessions.parquet`); new `meta.backtest_weeks`, and `/api/backtest?week=` uses it; `discount` what-if marked not available | |

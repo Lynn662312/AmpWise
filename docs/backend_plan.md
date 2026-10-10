@@ -12,37 +12,36 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 5 | What-if and backtest | Done |
 | 6 | Frontend integration (on ML's real data) | Done and live; walkthrough by a person still to do |
 | 7 | ML integration (Colab outputs) | Done |
-| 8 | Deploy, Firestore and optional extras | Done for the demo: backend on Render, frontend on Vercel, action status on Firestore. Optional extras open |
+| 8 | Deploy, Firestore and optional extras | Done for the demo: backend on Render, frontend on Vercel, action status on Firestore |
+| 9 | Contract v1.0: done counts as working, demo reset, saved what-if runs, website fixes | Built and tested on the branch `sleep`; not merged, so not live |
 
-## What is left (updated 2026-10-11, 4am, after contract v0.9)
+## What is left (updated 2026-10-11, morning, after contract v1.0)
 
-Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v0.7 and the action states saved in Firestore.
+Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v0.9 (pull request #8). Checked on 2026-10-11: every page opens on a computer and on a phone-sized screen, and the API answers with the v0.9 fields.
 
-Not live yet, all on the branch `final`:
+Not live yet, on the branch `sleep` (committed and pushed, not merged): everything in Stage 9. In short, contract v1.0 (a charger marked done works again, demo reset, saved what-if runs) and the website fixes.
 
-- Committed and pushed (commit "update"): contract v0.8, with the charger log, the "why" cards on the charger and station pages, and what-if waits that move.
-- Not committed: contract v0.9. Money now follows charger occupancy (a car is unserved only when every charger is busy), the what-if page charts the money at risk and hides the waiting-time parts when the wait does not change, station issues with no session at risk are no longer listed, the README was checked, and both `.env.example` files are references.
+On it: 100 backend tests and 1 ML test pass, the frontend type-checks and builds, and every page was opened and clicked through in a browser against a local backend. That backend used ML's real data, with Firestore replaced by a list in memory, so the live database was not touched.
 
-On all of it: 93 backend tests and 1 ML test pass, the frontend type-checks and builds, and every endpoint was called on the real data.
+To do, in order:
 
-Before the 9am submission, in order:
+1. [x] Commit the uncommitted work on `final` and push it.
+2. [x] Open a pull request from `final` into `main` and merge it (pull request #8).
+3. [ ] Review the branch `sleep` (Stage 9 lists the files), open a pull request into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
+4. [ ] Right after that deploy, open the live Actions page and click "Reset demo" once. The live database still holds test clicks (one action done, two assigned). From v1.0 a charger marked done counts as working, so without the reset JPL's charger 9 would count as working on the days it is faulty.
+5. [ ] Open the live site and walk every page once by hand: overview, map, a station, a charger (look for "Why this charger is flagged"), actions (mark one done, then "Reset demo"), what-if (run one repair at JPL on "Most chargers down" and save it), results. The first call after a quiet period is slow, because the free server sleeps; the page now says so.
+6. [ ] Give the group the new backtest numbers (Stage 7, "Known limits"): the money figure changed with v0.9.
 
-1. [ ] Commit the uncommitted work on `final` and push it.
-2. [ ] Open a pull request from `final` into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
-3. [ ] Open the live site and walk every page once by hand: overview, map, a station, a charger (look for "Why this charger is flagged"), actions, what-if (run one repair at JPL), results. The first call after a quiet period is slow, because the free server sleeps.
-4. [ ] Give the group the new backtest numbers (Stage 7, "Known limits"): the money figure changed with v0.9.
+One decision for the team: there is no login, so the routes that save something (mark done, demo reset, save a what-if run) can be called by anyone who has the API address. Stage 9 says what limits the damage and what the choices are.
 
 After that, only if there is time:
 
-- The action table and drawer still show a generic line per issue type, not the backend's `reason` sentence (the charger and station pages show it).
-- Make a charger action marked done count as working again, as the contract says. Today "done" is saved and shown, but the station's numbers do not change.
-- Saved what-if runs (`/api/scenarios`) and demo reset (`POST /api/demo/reset`) on Firestore, with the frontend buttons.
-- The three overview buttons that do nothing ("Schedule report", "View all", "Last 7 days").
 - AI advice with a real key (Stage 4). Without it the advice uses templates.
-- Waiting times still look at each half hour on its own, so the wait at the morning rush is overstated; a station can show a long wait and no unserved sessions.
-- Tidy the docs: the examples in `docs/api_contract.md` and the introduction of `docs/AGENTS.md` still describe the first Malaysian draft; `frontend/api-contract.txt` is an outdated copy.
+- Waiting times still look at each half hour on its own, so the wait at the morning rush is overstated; a station can show a long wait and no unserved sessions. Changing this changes the numbers already given for the slides, so it is a team decision.
+- The examples in `docs/api_contract.md` still use the first draft's Malaysian names and dates. They are what mock mode returns, so they can only change together with `backend/app/utils/mock_data.py` and its tests.
+- Old hand-over notes that no code uses: `frontend/note-add.txt`, `frontend/note-add-2.txt`, `frontend/src/features/chargers/add-note.tsx` and `docs/api_contract-V2.md`. They belong to the frontend side; delete them when nobody needs them.
 
-Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger occupancy; cleaned feedback reviewed; "same chargers" checked and not needed (Stage 7); contract v0.7 merged and deployed; assign / mark done working on the live site; local `backend/.env` fixed.
+Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger occupancy; cleaned feedback reviewed; "same chargers" checked and not needed (Stage 7); contract v0.9 merged and deployed; assign / mark done working on the live site; local `backend/.env` fixed.
 
 ## How to run and test (any stage)
 
@@ -174,6 +173,7 @@ Notes:
 - Only AI answers are cached, so a failed call is retried next time.
 - Template advice is English only, and the pre-warm script warms English only.
 - The cache is in memory and is lost when the server restarts.
+- The website used to give up on a request after 6 seconds, which is less than the 8 seconds the AI is allowed. It now waits 90 seconds (Stage 9), so a slow AI answer is no longer cut off.
 
 ## Stage 5 — What-if and backtest — Done
 
@@ -238,20 +238,20 @@ What was hard-coded or not connected, and what was done about it (2026-10-11):
 | Sidebar "Settings" link | Led to no page | Removed |
 | `max_tolerable_wait_min`, `site_issue` | Leftovers from contract v0.5 | Removed from the frontend's types, badge config and sample file |
 | Action list order | (to check) | Already shows the API's rank by default |
-| Why a charger is flagged (v0.8, not merged yet) | Nothing: no reason sentence, no evidence list, no log | The charger page shows the backend's reason, the sensor evidence, and a 14-day log: fault messages, the reading before the fault (for example cable temperature against its usual value) and the drivers' own reports |
-| Why a station needs attention (v0.8, not merged yet) | Nothing | The station page lists its open actions with the reason and the money at risk for each |
-| What-if "Predicted waiting time" and "Waiting time difference" (v0.8, not merged yet) | Always 120 → 120 or 0 → 0, difference 0 | The average wait, which moves when capacity changes (JPL plus 10 chargers on 4 Feb: 59.1 → 50.0 minutes). When an action does not change the wait, the two cards and the chart are not shown |
-| What-if revenue chart (v0.9, not merged yet) | Two nearly equal revenue totals ("USD 145 → 150") | The money at risk before and after, which drops clearly when the action helps; no chart when nothing changes |
+| Why a charger is flagged (v0.8) | Nothing: no reason sentence, no evidence list, no log | The charger page shows the backend's reason, the sensor evidence, and a 14-day log: fault messages, the reading before the fault (for example cable temperature against its usual value) and the drivers' own reports |
+| Why a station needs attention (v0.8) | Nothing | The station page lists its open actions with the reason and the money at risk for each |
+| What-if "Predicted waiting time" and "Waiting time difference" (v0.8) | Always 120 → 120 or 0 → 0, difference 0 | The average wait, which moves when capacity changes (JPL plus 10 chargers on 4 Feb: 59.1 → 50.0 minutes). When an action does not change the wait, the two cards and the chart are not shown |
+| What-if revenue chart (v0.9) | Two nearly equal revenue totals ("USD 145 → 150") | The money at risk before and after, which drops clearly when the action helps; no chart when nothing changes |
 
 Still open in the frontend:
 
 - [x] Assign / mark done is on: `VITE_ACTION_STATUS_ENABLED=true` on Vercel, and the action list and drawer show the saved state (2026-10-11)
-- [ ] The action table and drawer show a generic line per issue type, not the backend's `reason` sentence (the charger and station pages show it since v0.8)
+- [x] The action table, the phone cards and the drawer show the backend's `reason` sentence (Stage 9, on `sleep`)
 - [x] Forecast checked on the live site (2026-10-11): every station returns every half-hour slot. Three things look empty and are normal. "Baseline" is the real number of arrivals in the same slot one week earlier, so it is 0 in most slots. The wait is 0 in most slots because three of the four garages are far below capacity. And near the end of the data (29 Feb 2020, afternoon) only a few slots are left to show
-- [ ] Saved what-if runs and demo reset are not wired, and the backend has no routes for them yet (Stage 8)
-- [ ] Three buttons on the overview page do nothing yet: "Schedule report", "View all", "Last 7 days"
-- [ ] `frontend/api-contract.txt` is an old copy of the contract (v0.4); it is marked as outdated at the top. Delete it or copy `docs/api_contract.md` again
-- [ ] The overview totals are small next to the forecast, because ML's session files cover a 20% sample of the chargers
+- [x] Saved what-if runs and demo reset: routes and buttons built (Stage 9, on `sleep`)
+- [x] The three overview buttons that did nothing: "View all" opens the map (the station list), "Last 7 days" is now plain text because the chart has no other range, and "Schedule report" is removed because nothing in the project schedules reports (Stage 9, on `sleep`)
+- [x] `frontend/api-contract.txt` (an old v0.4 copy of the contract) is deleted; `docs/api_contract.md` is the only one (Stage 9, on `sleep`)
+- [x] The overview totals are small next to the forecast, because ML's session files cover a 20% sample of the chargers. The data cannot be changed, so the page now says it: "Energy and live sessions cover the chargers with sensors, about 20% of the network" (Stage 9, on `sleep`)
 
 ## Stage 7 — ML integration — Done
 
@@ -345,7 +345,7 @@ Still open after Stage 7 (also in "What is left" at the top):
 - [x] `final` merged into `main` (pull request #6, 2026-10-11); Render and Vercel redeployed, and the live site shows contract v0.7
 - [x] `FIREBASE_CREDENTIALS` is set on Render: the live site saves and reloads action states (2026-10-11). To look at it: Render dashboard → service `portpulse-ampwise-api` → Environment; the key is listed there with its value hidden. If it were missing, clicking "Assigned" on the live site would fail with "Firestore is not configured"
 - [x] `VITE_ACTION_STATUS_ENABLED=true` in Vercel; assign / mark done is shown on the live site
-- [ ] Optional, not built: `POST /api/demo/reset` and `/api/scenarios`. Also optional: the contract says a charger action marked done counts as working again; today "done" is saved and shown but does not change the station's numbers
+- [x] `POST /api/demo/reset`, `/api/scenarios`, and a charger action marked done counting as working again: built in Stage 9 (on `sleep`, not live until it is merged)
 - [ ] Run the full demo twice against the deployed backend
 
 Environment variables, all checked on 2026-10-11:
@@ -356,8 +356,8 @@ Environment variables, all checked on 2026-10-11:
 | Render | `FIREBASE_CREDENTIALS` | Set: the live site stores action states |
 | Render | `LLM_API_KEY`, `LLM_MODEL` | Not set: advice uses the templates |
 | Vercel | `VITE_API_BASE_URL`, `VITE_DATA_MODE=api` | Set (the live site calls the Render API) |
-| Vercel | `VITE_ACTION_STATUS_ENABLED` | `true`: assign / mark done is shown on the live site |
-| `backend/.env` | all six | Present, but `FIREBASE_CREDENTIALS` is spread over several lines and cannot be read. Fix it with one of the two forms in `backend/.env.example`. The two AI ones are empty on purpose |
+| Vercel | `VITE_ACTION_STATUS_ENABLED` | `true`: assign / mark done is shown on the live site (and, once Stage 9 is merged, "Reset demo" and the saved what-if runs) |
+| `backend/.env` | all six | Present. If `FIREBASE_CREDENTIALS` is ever spread over several lines again it cannot be read: use one of the two forms in `backend/.env.example`. The two AI ones are empty on purpose |
 | `frontend/.env` | all three | Present; points at the Render API. Set `VITE_ACTION_STATUS_ENABLED=true` here too to see assign / mark done locally |
 
 What is stored where. The frontend only ever calls the backend API, on a teammate's machine and when deployed:
@@ -366,8 +366,62 @@ What is stored where. The frontend only ever calls the backend API, on a teammat
 | --- | --- | --- |
 | Stations, forecasts, charger health, action list, driver report counts, pie chart percentages | The files in `backend/data/`, loaded into memory when the server starts | No. They are read-only, the same for everyone, and deployed with the code |
 | A what-if simulation result | Calculated on request from the same files | No |
-| Saved what-if runs (`/api/scenarios`) | Someone clicking "save" | Yes: Firestore `scenarios` (to build) |
+| Saved what-if runs (`/api/scenarios`) | Someone clicking "Save this run" | Yes: Firestore `scenarios` (built, Stage 9) |
 | Action status: open, assigned, done | Someone clicking in the app | Yes: Firestore `actions_status` (built) |
 | AI advice | The AI provider, cached | Optional: Firestore `advice_cache`, so it survives restarts |
 
-Firestore is needed for the "Yes" rows because free hosting puts the server to sleep and its memory is lost. Action status is built; saved what-if runs are not. Everything else works without a database.
+Firestore is needed for the "Yes" rows because free hosting puts the server to sleep and its memory is lost. Action status and saved what-if runs are built. Everything else works without a database.
+
+## Stage 9 — Contract v1.0 and website fixes — Built on the branch `sleep`, not merged
+
+In plain words: the three optional parts of the contract now exist, and the problems found by walking the website are fixed. Nothing here changes a number that was already given for the slides.
+
+What was built, most important first:
+
+- [x] The first load no longer looks broken. The free server sleeps and needs up to a minute to answer again. After 4 seconds without an answer the page shows "Waking up the server…". Requests without their own time limit (what-if, advice, mark done) waited only 6 seconds; they now wait 90.
+- [x] Station page on a phone: the page was 610 px wide on a 390 px screen because the forecast row pushed its card wider. The row now scrolls inside the card.
+- [x] A charger link works on its own: `/chargers/stn_001_c4` needed `?station=stn_001`, now the station is read from the charger id. The badge on that page said "working" for a faulty charger; it now shows the real status.
+- [x] What-if "Repair charger" only offers chargers whose sensors report a fault, and says so when there is none. "Test repair" on the charger page is shown only for a faulty charger.
+- [x] What-if: when the page was opened from a link with `?station=`, the station could not be changed (it jumped back). It can now.
+- [x] A charger action marked done counts as working again, as the contract always said: the station's working chargers, waits and open issues change, and the action stays on the list as done with the value it had. Moving it back to assigned undoes it.
+- [x] `POST /api/demo/reset` and the "Reset demo" button on the Actions page: every action is open again and the saved what-if runs are removed.
+- [x] `POST` / `GET /api/scenarios` and the "Saved runs" card on the what-if page.
+- [x] The action table, phone cards and drawer show the backend's `reason` sentence.
+- [x] Overview: the three buttons that did nothing, and the note about the 20% sample (see Stage 6).
+- [x] Smaller download: the logo went from 3.08 MB to 60 KB (resized to 256 px; it is shown at 36 px), and every page except the overview is loaded when first opened, so the first script went from 1,308 KB to 318 KB.
+- [x] Documents: contract v1.0, `docs/AGENTS.md` describes the US data, `frontend/api-contract.txt` deleted.
+
+Files to review:
+
+| Part | Files |
+| --- | --- |
+| Done counts as working | `app/services/classifier.py` (`classify_charger`), `app/services/priority.py` (the sensor-fault branch), `app/services/whatif.py`, `app/services/views.py` (`open_issue_count`), `app/services/data_loader.py` (`repaired`), `app/api/routes/actions.py`, `app/main.py` |
+| Reset and saved runs | `app/api/routes/demo.py`, `app/api/routes/scenarios.py`, `app/firebase/client.py`, `app/schemas/action.py`, `app/schemas/whatif.py` |
+| Tests | `tests/test_demo_state.py` (7 tests, Firestore replaced by a dict) |
+| Frontend | `src/App.tsx`, `src/services/api-client.ts`, `src/features/actions/ActionsPage.tsx` and its `components/`, `src/features/what-if/WhatIfPage.tsx`, `components/ChargerSelector.tsx`, `components/SavedRuns.tsx`, `src/features/chargers/ChargerHealthPage.tsx`, `src/features/stations/StationDetailPage.tsx` |
+
+How to test: `pytest -v` shows 100 passed. In the browser, with the backend running locally and `VITE_ACTION_STATUS_ENABLED=true`: on "Safety faults" open action #2 (JPL, charger 8), choose "Completed", then open the JPL station page: it shows 52/52 working and charger 8 as healthy. Click "Reset demo" on the Actions page and it is 51/52 again. On "Most chargers down" open what-if for JPL: the picker offers only charger 10; run it and click "Save this run".
+
+How "done counts as working" works:
+
+- The backend keeps a set of repaired chargers in memory (`DataStore.repaired`). It is filled from Firestore when the server starts, and changed by mark done, by moving an action back to assigned, and by a demo reset.
+- `classify_charger` answers `healthy` for a charger in that set, so everything that counts working chargers follows without further changes.
+- The charger's own health page and log still show what the sensors reported.
+
+Assumptions and limits to confirm with the team:
+
+- An action id has no date in it (`safety_fault:stn_004:stn_004_c8`), so "done" holds for that charger and issue type at every simulated time, also on a later day when the same charger has the same kind of fault again. "Reset demo" is the way back. This was already true for the state shown in the list; from v1.0 it also changes the numbers.
+- Saved runs: the name is 1 to 80 characters and at most 30 runs are kept. The name is written by the page ("Repair stn_004_c10 at JPL Arroyo Garage · 2020-02-04"), the user does not type one.
+- "Reset demo" always removes the saved runs too (`clear_scenarios: true`). The route itself keeps them unless asked.
+- The buttons for reset and saved runs are shown with the same switch as assign / mark done (`VITE_ACTION_STATUS_ENABLED`), because all of them need Firestore.
+
+No login, and what that means (the first point of the review that started this stage):
+
+- Mark done, demo reset and save a run can be called by anyone who has the API address. A real fix is a login, and the project rules exclude one (`docs/AGENTS.md`, rule 7). A password placed in the website would not help either: everything the website holds can be read by its visitors.
+- What limits the damage: a state can only be `assigned` or `done`, and only on an action the API has listed; a saved run is checked field by field and the list is capped at 30; "Reset demo" puts everything back in one click.
+- The choices: keep it as it is for the demo (recommended: check the Actions page before presenting and reset if needed), or set `VITE_ACTION_STATUS_ENABLED=false` on Vercel after judging, which hides the buttons. Only a login would really close the routes.
+
+Not done, and why:
+
+- Writing to the live database was not tested: the checks used a stand-in, so the first real "Reset demo" and "Save this run" happen after the merge (step 5 at the top). Reading from the live database with the new code was tested.
+- The walkthrough "as a person" and "run the full demo twice" stay open: they are for a person on the deployed site.
