@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
-import { AlertCircle, ClipboardCheck, RefreshCw } from "lucide-react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { AlertCircle, ClipboardCheck, RefreshCw, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSimulatedTime } from "@/context/TimeContext"
 import { ActionCard } from "@/features/actions/components/ActionCard"
@@ -11,6 +12,7 @@ import { useActions } from "@/features/actions/hooks/useActions"
 import type { Action, ActionStatus, IssueType, Urgency } from "@/features/actions/types"
 import { matchesAction, toUiStatus } from "@/features/actions/utils/actionHelpers"
 import { useMapStations } from "@/features/map/hooks/useMapStations"
+import { resetDemo } from "@/services/action-service"
 import { isApiMode } from "@/services/api-client"
 
 export function ActionsPage() {
@@ -26,6 +28,12 @@ export function ActionsPage() {
   const [statuses, setStatuses] = useState<Record<string, ActionStatus>>({})
   const actions = data?.actions ?? []
   const stations = stationData?.stations ?? []
+  const statusSyncEnabled = isApiMode && import.meta.env.VITE_ACTION_STATUS_ENABLED === "true"
+  const queryClient = useQueryClient()
+  // A saved state changes the station numbers too (a charger marked done works again), so everything is reloaded.
+  const reload = () => void queryClient.invalidateQueries()
+  const reset = useMutation({ mutationFn: resetDemo, onSuccess: () => { setStatuses({}); reload() } })
+  const confirmReset = () => { if (window.confirm("Reset the demo? Every action becomes open again and the saved what-if runs are removed.")) reset.mutate() }
 
   const filteredActions = useMemo(() => actions.filter((action) => {
     const currentStatus = statuses[action.id] ?? toUiStatus(action.state)
@@ -51,8 +59,9 @@ export function ActionsPage() {
   return <div className="space-y-6 pb-4">
     <section className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
       <div><h1 className="font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Action Center</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Prioritize issues. Protect charging availability.</p></div>
-      <Button variant="soft" className="size-10 rounded-full p-0" onClick={() => void refetch()} disabled={isFetching} title="Refresh actions" aria-label="Refresh actions"><RefreshCw className={isFetching ? "animate-spin" : ""} size={15} /></Button>
+      <div className="flex items-center gap-2">{statusSyncEnabled && <Button variant="soft" className="h-10 px-4 text-xs" onClick={confirmReset} disabled={reset.isPending} title="Open every action again and remove the saved what-if runs"><RotateCcw size={14} />{reset.isPending ? "Resetting…" : "Reset demo"}</Button>}<Button variant="soft" className="size-10 rounded-full p-0" onClick={() => void refetch()} disabled={isFetching} title="Refresh actions" aria-label="Refresh actions"><RefreshCw className={isFetching ? "animate-spin" : ""} size={15} /></Button></div>
     </section>
+    {reset.isError && <p className="text-xs text-warning" role="alert">Demo reset unavailable. {reset.error instanceof Error ? reset.error.message : ""}</p>}
     <ActionKpiCards actions={filteredActions} selectedIsoTime={selectedIsoTime} loading={isLoading} />
     <ActionToolbar search={search} issues={issues} urgency={urgency} status={status} sort={sort} count={filteredActions.length} onSearchChange={setSearch} onIssuesChange={setIssues} onUrgencyChange={setUrgency} onStatusChange={setStatus} onSortChange={setSort} onClear={clearFilters} />
     {isError
@@ -65,7 +74,7 @@ export function ActionsPage() {
               : <StatePanel title="No California actions yet" description="No operational issues have been recorded for California stations." action="Refresh" onAction={() => void refetch()} />)
           : <><ActionTable actions={filteredActions} stations={stations} statuses={statuses} onSelect={setSelectedAction} /><div className="space-y-3 lg:hidden">{filteredActions.map((action) => <ActionCard key={action.id} action={action} stations={stations} status={statuses[action.id] ?? toUiStatus(action.state)} onSelect={() => setSelectedAction(action)} />)}</div></>}
     <div className="flex items-center gap-2 text-xs text-muted-foreground"><ClipboardCheck size={14} className="text-primary" />Safety issues are surfaced before financial ranking. Revenue figures are estimates, not confirmed lost revenue.</div>
-    <ActionDetailDrawer action={selectedAction} stations={stations} status={selectedStatus} statusSyncEnabled={isApiMode && import.meta.env.VITE_ACTION_STATUS_ENABLED === "true"} open={Boolean(selectedAction)} onOpenChange={(open) => { if (!open) setSelectedAction(null) }} onStatusChange={(nextStatus) => { if (selectedAction) setStatuses((current) => ({ ...current, [selectedAction.id]: nextStatus })) }} />
+    <ActionDetailDrawer action={selectedAction} stations={stations} status={selectedStatus} statusSyncEnabled={statusSyncEnabled} open={Boolean(selectedAction)} onOpenChange={(open) => { if (!open) setSelectedAction(null) }} onStatusChange={(nextStatus) => { if (selectedAction) setStatuses((current) => ({ ...current, [selectedAction.id]: nextStatus })); if (statusSyncEnabled) reload() }} />
   </div>
 }
 

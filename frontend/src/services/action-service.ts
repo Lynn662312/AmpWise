@@ -28,3 +28,8 @@ export async function updateActionStatus(actionId: string, state: Exclude<Action
   if (!isApiMode || import.meta.env.VITE_ACTION_STATUS_ENABLED !== "true") throw new Error("Persistent action status is unavailable until the backend status route is enabled.")
   return fetchJson<Action>(`/api/actions/${encodeURIComponent(actionId)}/status`, { method: "PATCH", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) })
 }
+
+// Every action is open again and the saved what-if runs are removed, so a demo starts clean.
+export async function resetDemo(): Promise<{ cleared_actions: number; cleared_scenarios: number }> {
+  return fetchJson("/api/demo/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clear_scenarios: true }) })
+}

@@ -31,8 +31,12 @@ async function parseError(response: Response) {
   }
 }
 
+// The free backend server sleeps when unused and can take up to a minute to answer again,
+// and AI advice may take 8 seconds, so a request is given time before it is called failed.
+const REQUEST_TIMEOUT_MS = 90_000
+
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${resolvePath(path)}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(6000) })
+  const response = await fetch(`${apiBaseUrl}${resolvePath(path)}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
   if (!response.ok) throw new ApiRequestError(await parseError(response), response.status)
   return response.json() as Promise<T>
 }

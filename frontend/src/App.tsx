@@ -1,12 +1,11 @@
-import { useState } from "react"
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom"
+import { lazy, Suspense, useEffect, useState } from "react"
+import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom"
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { Bolt, CalendarDays, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Search, Settings, Sun, TrendingUp, X } from "lucide-react"
+import { Bolt, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Sun, TrendingUp, X } from "lucide-react"
 import { EvStationIcon } from "@/components/icons/EvStationIcon"
 import { PlugIcon } from "@/components/icons/PlugIcon"
 import { NotificationBell } from "@/features/notifications/components/NotificationBell"
 import { EmergencyAlertDialog } from "@/features/notifications/components/EmergencyAlertDialog"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { MetricCard } from "@/components/common/MetricCard"
 import { DataSourceBadge } from "@/components/common/DataSourceBadge"
@@ -15,13 +14,7 @@ import { FeedbackPieCard } from "@/components/common/FeedbackPieCard"
 import { AppSelect } from "@/components/common/AppSelect"
 import { useTheme } from "@/theme/ThemeProvider"
 import { cn } from "@/lib/utils"
-import { MapPage } from "@/features/map/MapPage"
 import { useSimulatedTime } from "@/context/TimeContext"
-import { ActionsPage } from "@/features/actions/ActionsPage"
-import { WhatIfPage } from "@/features/what-if/WhatIfPage"
-import { ResultsPage } from "@/features/results/ResultsPage"
-import { StationDetailPage } from "@/features/stations/StationDetailPage"
-import { ChargerHealthPage } from "@/features/chargers/ChargerHealthPage"
 import { ActionDetailDrawer } from "@/features/actions/components/ActionDetailDrawer"
 import { useActions } from "@/features/actions/hooks/useActions"
 import type { Action } from "@/features/actions/types"
@@ -36,6 +29,14 @@ import { useOverview } from "@/features/overview/hooks/useOverview"
 import { isApiMode } from "@/services/api-client"
 import { getTimeZone } from "@/lib/simulationConfig"
 import logo from "@/assets/logo.png"
+
+// Every page except the overview is loaded when it is first opened, so the first screen downloads less.
+const MapPage = lazy(() => import("@/features/map/MapPage").then((page) => ({ default: page.MapPage })))
+const ActionsPage = lazy(() => import("@/features/actions/ActionsPage").then((page) => ({ default: page.ActionsPage })))
+const WhatIfPage = lazy(() => import("@/features/what-if/WhatIfPage").then((page) => ({ default: page.WhatIfPage })))
+const ResultsPage = lazy(() => import("@/features/results/ResultsPage").then((page) => ({ default: page.ResultsPage })))
+const StationDetailPage = lazy(() => import("@/features/stations/StationDetailPage").then((page) => ({ default: page.StationDetailPage })))
+const ChargerHealthPage = lazy(() => import("@/features/chargers/ChargerHealthPage").then((page) => ({ default: page.ChargerHealthPage })))
 
 type DashboardStation = { name: string; area: string; status: string; ports: string; load: string; tone: string }
 type OverviewStation = { station_id: string; status: string; ports: string; load: string; tone: string }
@@ -57,6 +58,9 @@ function AppShell() {
   const { theme, toggleTheme } = useTheme()
   const { selectedTime, setSelectedTime, selectedIsoTime, selectDemoTime, demoTimes, timeLabel, isReady, timeError } = useSimulatedTime()
   const { presentationMode } = useDemoMode()
+  // The free backend server sleeps when unused; say so when the first answer is slow.
+  const [slowStart, setSlowStart] = useState(false)
+  useEffect(() => { const timer = window.setTimeout(() => setSlowStart(true), 4000); return () => window.clearTimeout(timer) }, [])
 
   return (
     <div className="min-h-screen bg-background">
@@ -84,7 +88,7 @@ function AppShell() {
             {/* <PresentationMenu /> */}
           <NotificationBell /><button className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button></div>
         </header>
-        <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-12">{timeError && <div className="mb-5 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{timeError}</div>}<Routes><Route path="/map" element={<MapPage />} /><Route path="/actions" element={<ActionsPage />} /><Route path="/what-if" element={<WhatIfPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/stations/:id" element={<StationDetailPage />} /><Route path="/chargers/:id" element={<ChargerHealthPage />} /><Route path="*" element={<Dashboard />} /></Routes></div>
+        <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-12">{timeError && <div className="mb-5 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{timeError}</div>}{isApiMode && slowStart && !isReady && !timeError && <div className="mb-5 rounded-2xl border border-border bg-muted px-4 py-3 text-sm text-muted-foreground" role="status">Waking up the server. It sleeps when nobody uses it, so the first load can take up to a minute.</div>}<Suspense fallback={<div className="h-72 animate-pulse rounded-[1.5rem] bg-muted" />}><Routes><Route path="/map" element={<MapPage />} /><Route path="/actions" element={<ActionsPage />} /><Route path="/what-if" element={<WhatIfPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/stations/:id" element={<StationDetailPage />} /><Route path="/chargers/:id" element={<ChargerHealthPage />} /><Route path="*" element={<Dashboard />} /></Routes></Suspense></div>
         <DemoStepControls />
       </main>
       <EmergencyAlertDialog />
@@ -137,8 +141,8 @@ function Dashboard() {
     : "network availability"
   const selectedDate = isReady ? new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: getTimeZone() }).format(new Date(selectedIsoTime)) : "Waiting for supported backend time"
   return <div className="space-y-8">
-    <section className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-sm font-medium text-muted-foreground">{selectedDate}</p><h1 className="font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Good morning, user</h1><p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">Here’s your network pulse. Keep the charge moving.</p></div><Button variant="soft"><CalendarDays size={16} />Schedule report</Button></section>
-    <section className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">{overviewData && <DataSourceBadge mock={overviewData.data_source === "placeholder"} mockLabel="Backend placeholder data" liveLabel="Backend overview data" />}<span>{overviewUnavailable ? "Overview metrics unavailable" : "Overview metrics from the backend"}</span></section>
+    <section className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-sm font-medium text-muted-foreground">{selectedDate}</p><h1 className="font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Good morning, user</h1><p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">Here’s your network pulse. Keep the charge moving.</p></div></section>
+    <section className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">{overviewData && <DataSourceBadge mock={overviewData.data_source === "placeholder"} mockLabel="Backend placeholder data" liveLabel="Backend overview data" />}<span>{overviewUnavailable ? "Overview metrics unavailable" : overviewData.data_source === "api" ? "Energy and live sessions cover the chargers with sensors, about 20% of the network" : "Overview metrics from the backend"}</span></section>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard icon={<Bolt size={20} />} label="Energy delivered" value={dashboardData.summary.energy_delivered_kwh} loading={overviewLoading} suffix=" kWh" description={overviewError ? "Overview API unavailable" : "Today so far"} />
       <MetricCard icon={<EvStationIcon size={20} />} label="Stations with working chargers" value={dashboardData.summary.active_stations} suffix={dashboardData.summary.total_stations === null ? undefined : ` / ${dashboardData.summary.total_stations}`} description={stationAvailabilityDescription} trailing={!isApiMode ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">75%</span> : undefined} />
@@ -146,10 +150,10 @@ function Dashboard() {
       <MetricCard icon={<Gauge size={20} />} label="Network uptime" value={dashboardData.summary.network_uptime_pct} loading={overviewLoading} decimals={1} suffix="%" description={overviewError ? "Overview API unavailable" : "Last 7 days"} />
     </section>
     <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
-      <Card className="flex h-full min-h-[355px] flex-col p-5 sm:p-7"><div className="flex shrink-0 items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">{overviewLoading ? "Loading…" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : dashboardData.summary.weekly_energy_kwh.toLocaleString("en-US")}</h2><span className="mb-1 text-sm text-muted-foreground">{overviewError ? "Overview API unavailable" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : "kWh in the last 7 days"}</span></div></div><button className="rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">Last 7 days <ChevronRight className="ml-1 inline" size={14} /></button></div><div className="mt-6 min-h-48 w-full flex-1">{overviewLoading ? <div className="h-full animate-pulse rounded-2xl bg-muted" /> : trendData.length ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={6} /><YAxis hide domain={["dataMin", "dataMax"]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer> : <div className="grid h-full place-items-center rounded-2xl bg-muted text-xs text-muted-foreground">{overviewError ? "Overview energy data unavailable." : "No energy trend data available."}</div>}</div></Card>
+      <Card className="flex h-full min-h-[355px] flex-col p-5 sm:p-7"><div className="flex shrink-0 items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">{overviewLoading ? "Loading…" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : dashboardData.summary.weekly_energy_kwh.toLocaleString("en-US")}</h2><span className="mb-1 text-sm text-muted-foreground">{overviewError ? "Overview API unavailable" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : "kWh in the last 7 days"}</span></div></div><span className="px-3 py-2 text-xs font-semibold text-muted-foreground">Last 7 days</span></div><div className="mt-6 min-h-48 w-full flex-1">{overviewLoading ? <div className="h-full animate-pulse rounded-2xl bg-muted" /> : trendData.length ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={6} /><YAxis hide domain={["dataMin", "dataMax"]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer> : <div className="grid h-full place-items-center rounded-2xl bg-muted text-xs text-muted-foreground">{overviewError ? "Overview energy data unavailable." : "No energy trend data available."}</div>}</div></Card>
       <NetworkStatusCard onlineStations={dashboardData.summary.active_stations} totalStations={dashboardData.summary.total_stations} uptime={dashboardData.summary.network_uptime_pct} alerts={alerts} alertsLoading={actionsLoading} alertsError={actionsError} stationDataLoading={stationsLoading} stationDataError={stationsError} onAlertSelect={setSelectedAlert} />
     </section>
-    <section className="grid gap-5 xl:grid-cols-2"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Button variant="ghost" className="px-2 text-xs">View all <ChevronRight size={14} /></Button></div><div className="space-y-2">{stations.length ? stations.map((station) => <StationRow key={station.name} {...station} />) : <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Per-station session data is not available yet.</p>}</div></Card><FeedbackPieCard categories={reportData?.categories ?? []} loading={feedbackLoading} error={feedbackError} /></section>
+    <section className="grid gap-5 xl:grid-cols-2"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Link to="/map" className="inline-flex items-center gap-2 rounded-full px-2 py-2.5 text-xs font-semibold hover:bg-muted">View all <ChevronRight size={14} /></Link></div><div className="space-y-2">{stations.length ? stations.map((station) => <StationRow key={station.name} {...station} />) : <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Per-station session data is not available yet.</p>}</div></Card><FeedbackPieCard categories={reportData?.categories ?? []} loading={feedbackLoading} error={feedbackError} /></section>
     <ActionDetailDrawer action={selectedAlert} stations={stationData?.stations ?? []} status="pending" statusSyncEnabled={false} open={Boolean(selectedAlert)} onOpenChange={(open) => { if (!open) setSelectedAlert(null) }} onStatusChange={() => undefined} />
   </div>
 }

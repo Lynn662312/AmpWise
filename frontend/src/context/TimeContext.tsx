@@ -48,7 +48,7 @@ export function TimeProvider({ children }: { children: ReactNode }) {
   const [selectedTime, setSelectedTime] = useState(0)
   const [selectedIsoTime, setSelectedIsoTime] = useState("")
   const initialized = useRef(false)
-  const { data: meta, error: metaQueryError } = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => dataService.getMeta(signal), staleTime: Infinity, refetchOnWindowFocus: false, retry: false })
+  const { data: meta, error: metaQueryError } = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => dataService.getMeta(signal), staleTime: Infinity, refetchOnWindowFocus: false, retry: 1 })
 
   useEffect(() => {
     if (!meta || initialized.current) return
