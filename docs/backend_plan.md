@@ -7,8 +7,8 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 0 | Setup | Done |
 | 1 | Mock API for the frontend | Done |
 | 2 | Calculation core | Done |
-| 3 | Action list on parquet data | Next |
-| 4 | AI advice | |
+| 3 | Action list on parquet data | Done |
+| 4 | AI advice | Next |
 | 5 | What-if and backtest | |
 | 6 | Frontend integration (on dummy data) | |
 | 7 | ML integration (Colab outputs) | |
@@ -75,16 +75,29 @@ Assumptions to confirm with the team:
 - Any charger that is not `healthy` counts as not working.
 - `evidence` in `health.parquet` is a list of strings per row.
 
-## Stage 3 — Action list on parquet data
+## Stage 3 — Action list on parquet data — Done
 
 In plain words: find the problems, put a ringgit value on each, sort them, and write one sentence explaining each.
 
-- [ ] `app/services/priority.py` — `score_issue`, `build_action_list`, `recommend_action`; `safety_fault` first, then `rm_at_risk` descending
-- [ ] `app/services/explain.py` — `make_reason` templates
-- [ ] `/api/meta`, `/api/stations`, `/api/stations/{id}/forecast`, `/api/chargers/{id}/health`, `/api/actions` use parquet data when `MOCK=0`
-- [ ] Tests for ordering; `/api/actions` responds in under 1 s
+- [x] `app/services/priority.py` — `score_issue`, `build_action_list`, `recommend_action`; `safety_fault` first, then `rm_at_risk` descending
+- [x] `app/services/explain.py` — `make_reason` templates
+- [x] `app/services/views.py` — builds the meta, station, forecast and charger health responses
+- [x] `/api/meta`, `/api/stations`, `/api/stations/{id}/forecast`, `/api/chargers/{id}/health`, `/api/actions` use parquet data when `MOCK=0`
+- [x] `tests/test_priority.py` — ordering, ids, endpoints on the dummy data, `/api/actions` under 1 s
 
-How to test: set `MOCK=0`; the "Day before Raya exodus" time shows more and costlier actions than "Normal Tuesday".
+How to test: `pytest -v` shows 38 passed. Then run `python -m scripts.make_dummy_data`, set `MOCK=0` in `backend/.env`, start the server and call `/api/actions` with the two demo times: "Normal Tuesday" gives 2 actions, "Day before Raya exodus" gives 7 with the safety fault first.
+
+Still mock-only (500 when `MOCK=0`): advice, what-if, backtest.
+
+Assumptions to confirm with the team:
+
+- `rm_at_risk` looks 72 hours ahead.
+- Faulty charger: `p_fault` × sessions saved by getting that one charger back × `rm_per_session`.
+- Station issue: sessions still lost with every charger working × `rm_per_session`; `underused` is RM 0.
+- Station congestion that disappears once faulty chargers are fixed is not listed separately.
+- Deadline = the first slot where cars start leaving; a safety fault's deadline is now.
+- Urgency: safety fault is `critical`; otherwise `high` from RM 1,000, `medium` from RM 200, else `low`.
+- `/api/meta` takes `time_range` and `assumptions` from the data; corridor name, festive periods and demo times still come from the contract example.
 
 ## Stage 4 — AI advice
 

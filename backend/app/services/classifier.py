@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from app.schemas import ChargerStatus, IssueType
 from app.services.data_loader import DataStore
 from app.services.queueing import predict_wait
@@ -11,12 +13,15 @@ RED_WAIT_MIN = 40.0  # same limit as WaitLevel "red"
 UNDERUSED_UTILISATION = 0.10  # assumption: under 10% busy over the next day
 
 
-def classify_charger(data: DataStore, charger_id: str, time: datetime) -> ChargerStatus:
-    """Latest health status on or before the simulated day."""
+def latest_health(data: DataStore, charger_id: str, time: datetime) -> pd.Series | None:
+    """The charger's health row on or before the simulated day."""
     rows = data.health[(data.health["charger_id"] == charger_id) & (data.health["date"] <= time.date())]
-    if rows.empty:
-        return ChargerStatus.healthy
-    return ChargerStatus(rows.iloc[-1]["status"])
+    return None if rows.empty else rows.iloc[-1]
+
+
+def classify_charger(data: DataStore, charger_id: str, time: datetime) -> ChargerStatus:
+    row = latest_health(data, charger_id, time)
+    return ChargerStatus.healthy if row is None else ChargerStatus(row["status"])
 
 
 def working_chargers(data: DataStore, station_id: str, time: datetime) -> int:

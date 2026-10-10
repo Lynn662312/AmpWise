@@ -6,18 +6,10 @@ from app.schemas import ChargerStatus, IssueType
 from app.services import data_loader
 from app.services.classifier import classify_charger, classify_station, working_chargers
 from app.services.data_loader import DataStore
-from scripts.make_dummy_data import write_dummy_data
 
 MYT = timezone(timedelta(hours=8))
 NORMAL_TUESDAY = datetime(2026, 3, 17, 14, 0, tzinfo=MYT)
 DAY_BEFORE_RAYA = datetime(2026, 3, 26, 14, 0, tzinfo=MYT)
-
-
-@pytest.fixture(scope="module")
-def data(tmp_path_factory: pytest.TempPathFactory) -> DataStore:
-    data_dir = str(tmp_path_factory.mktemp("data"))
-    write_dummy_data(data_dir)
-    return data_loader.load_all(data_dir)
 
 
 def test_loader_reads_contract_columns(data: DataStore) -> None:

@@ -189,10 +189,10 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 
 **阶段 3：行动清单（8–14h）/ Phase 3: action list**
 
-- [ ] `priority.py`：`score_issue`、`build_action_list`，安全故障置顶 / safety faults always first
-- [ ] `explain.py`：`make_reason` 模板 / templates
-- [ ] `/api/actions`、`/api/stations`、`/api/chargers/{id}/health` 换成真实数据 / switch to real data
-- [ ] 检查：`/api/actions` 1 秒内返回 / check `/api/actions` responds in under 1 s
+- [x] `priority.py`：`score_issue`、`build_action_list`，安全故障置顶 / safety faults always first — **已完成 Done**
+- [x] `explain.py`：`make_reason` 模板 / templates — **已完成 Done**
+- [x] `/api/actions`、`/api/stations`、`/api/chargers/{id}/health` 换成真实数据 / switch to real data — **已完成 Done**（目前读假 parquet；`/api/meta` 和 forecast 也已接上 / reads the dummy parquet for now; `/api/meta` and forecast are wired too）
+- [x] 检查：`/api/actions` 1 秒内返回 / check `/api/actions` responds in under 1 s — **已完成 Done**
 
 **阶段 3b：AI 建议（12–16h）/ Phase 3b: AI advice**
 

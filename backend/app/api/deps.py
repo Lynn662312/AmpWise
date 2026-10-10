@@ -1,14 +1,26 @@
 import re
 from datetime import datetime
+from typing import Any
 
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
 
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiError, bad_request
+from app.services import views
+from app.services.data_loader import DataStore
 from app.utils import mock_data
 
 
-def parse_time(value: str, field: str = "time") -> datetime:
+def get_data(request: Request, settings: Settings = Depends(get_settings)) -> DataStore | None:
+    """The loaded ML files, or None in mock mode."""
+    return None if settings.mock else request.app.state.data
+
+
+def get_meta(data: DataStore | None = Depends(get_data)) -> dict[str, Any]:
+    return mock_data.meta() if data is None else views.build_meta(data)
+
+
+def parse_time(value: str, meta: dict[str, Any], field: str = "time") -> datetime:
     """Parse the simulated "now" and check it is inside meta.time_range."""
     # An unencoded "+08:00" in a query string arrives as " 08:00".
     value = re.sub(r" (\d{2}:\d{2})$", r"+\1", value.strip())
@@ -19,7 +31,7 @@ def parse_time(value: str, field: str = "time") -> datetime:
     if parsed.tzinfo is None:
         raise bad_request(f"{field} must include a UTC offset, e.g. +08:00")
 
-    time_range = mock_data.meta()["time_range"]
+    time_range = meta["time_range"]
     start = datetime.fromisoformat(time_range["start"])
     end = datetime.fromisoformat(time_range["end"])
     if not start <= parsed <= end:
@@ -27,11 +39,14 @@ def parse_time(value: str, field: str = "time") -> datetime:
     return parsed
 
 
-def sim_time(time: str = Query(..., description='Simulated "now", ISO 8601 with +08:00')) -> datetime:
-    return parse_time(time)
+def sim_time(
+    time: str = Query(..., description='Simulated "now", ISO 8601 with +08:00'),
+    meta: dict[str, Any] = Depends(get_meta),
+) -> datetime:
+    return parse_time(time, meta)
 
 
-def require_mock(settings: Settings = Depends(get_settings)) -> None:
-    # Real-data mode arrives with the services layer; until then only MOCK=1 works.
-    if not settings.mock:
-        raise ApiError(500, "Real data mode is not implemented yet; set MOCK=1")
+def require_mock(data: DataStore | None = Depends(get_data)) -> None:
+    # For endpoints whose real logic is not built yet; only MOCK=1 works.
+    if data is not None:
+        raise ApiError(500, "Real data mode is not implemented yet for this endpoint; set MOCK=1")

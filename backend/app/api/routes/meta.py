@@ -1,16 +1,15 @@
 from fastapi import APIRouter, Depends
 
-from app.api.deps import require_mock
+from app.api.deps import get_meta
 from app.core.config import Settings, get_settings
 from app.schemas import HealthCheck, Meta
-from app.utils import mock_data
 
 router = APIRouter(tags=["meta"])
 
 
-@router.get("/meta", response_model=Meta, dependencies=[Depends(require_mock)])
-def get_meta() -> dict:
-    return mock_data.meta()
+@router.get("/meta", response_model=Meta)
+def read_meta(meta: dict = Depends(get_meta)) -> dict:
+    return meta
 
 
 @router.get("/health", response_model=HealthCheck)
