@@ -2,6 +2,9 @@
 
 Read this before writing any code in this repo.
 
+> **Update:** the data is now US (ACN dataset, California): station local time (`-08:00`), USD, US holidays.
+> Mentions of Malaysia, `+08:00`, ringgit and Hari Raya below are from the first draft. See the v0.3 note in `docs/api_contract.md`.
+
 ## What we are building
 
 AmpWise is an operator dashboard for EV charging networks in Malaysia (hackathon, Track 1: Predictive Model).

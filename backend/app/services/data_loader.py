@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -11,10 +12,12 @@ FORECAST_COLUMNS = ["station_id", "slot_start", "arrivals", "arrivals_baseline",
 HEALTH_COLUMNS = ["charger_id", "station_id", "date", "power_ratio", "baseline", "status", "p_fault", "evidence"]
 FAULT_LABEL_COLUMNS = ["charger_id", "fault_type", "start_date"]
 PARAM_KEYS = ["avg_charge_min", "rm_per_session", "max_tolerable_wait_min"]
+META_KEYS = ["corridor_name", "currency", "festive_periods", "demo_times"]
 
 
 @dataclass
 class DataStore:
+    meta: dict[str, Any]
     stations: pd.DataFrame
     forecasts: pd.DataFrame
     health: pd.DataFrame
@@ -38,7 +41,7 @@ def load_forecasts(data_dir: str) -> pd.DataFrame:
     df = _read(data_dir, "forecasts.parquet", FORECAST_COLUMNS)
     df["slot_start"] = pd.to_datetime(df["slot_start"])
     if df["slot_start"].dt.tz is None:
-        raise ValueError("forecasts.parquet slot_start must include the +08:00 offset")
+        raise ValueError("forecasts.parquet slot_start must include a UTC offset (station local time)")
     return df.sort_values(["station_id", "slot_start"]).reset_index(drop=True)
 
 
@@ -63,8 +66,17 @@ def load_params(data_dir: str) -> dict[str, float]:
     return params
 
 
+def load_meta(data_dir: str) -> dict[str, Any]:
+    meta = json.loads((Path(data_dir) / "meta.json").read_text(encoding="utf-8"))
+    missing = [k for k in META_KEYS if k not in meta]
+    if missing:
+        raise ValueError(f"meta.json is missing keys: {missing}")
+    return meta
+
+
 def load_all(data_dir: str) -> DataStore:
     return DataStore(
+        meta=load_meta(data_dir),
         stations=load_stations(data_dir),
         forecasts=load_forecasts(data_dir),
         health=load_health(data_dir),

@@ -11,6 +11,7 @@ from app.core.errors import not_found
 
 META: dict[str, Any] = {
     "corridor_name": "KL – Penang (PLUS E1)",
+    "currency": "RM",
     "time_range": {"start": "2026-03-16T00:00:00+08:00", "end": "2026-04-05T23:30:00+08:00"},
     "festive_periods": [
         {"name": "Hari Raya exodus", "start": "2026-03-27T00:00:00+08:00", "end": "2026-03-30T23:30:00+08:00"}

@@ -4,7 +4,13 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.2 · 2026-10-10
+Version: v0.3 · 2026-10-10
+
+> **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
+> - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
+> - **Money:** USD. Field names keep the `rm_` prefix for now (`rm_at_risk`, `rm_per_session`, …); read the currency from `meta.currency`.
+> - **Festive:** US public holidays and the days near them.
+> - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). The field names and shapes are still correct.
 
 ---
 
@@ -64,6 +70,7 @@ type ActionState = "open" | "assigned" | "done";
 ```ts
 interface Meta {
   corridor_name: string;            // "KL – Penang (PLUS E1)"
+  currency: string;                 // "USD" (v0.3)
   time_range: { start: string; end: string };
   festive_periods: { name: string; start: string; end: string }[];
   demo_times: { label: string; time: string }[];   // preset slider points
@@ -310,8 +317,12 @@ Backend reads these at startup. Path set by `DATA_DIR` in backend `.env`.
 | `health.parquet` | charger_id, station_id, date, power_ratio, baseline, status, p_fault, evidence | ML 2 |
 | `fault_labels.parquet` | charger_id, fault_type, start_date | ML 2 |
 | `params.json` | avg_charge_min, rm_per_session, max_tolerable_wait_min | ML 1 + team |
+| `meta.json` (v0.3) | corridor_name, currency, festive_periods, demo_times | Backend |
 
 Dummy versions with the right columns are due by hour 3.
+
+v0.3: `forecasts.parquet` may also carry `arrivals_actual` (what really happened), used by the backtest.
+ML 1 currently exports `model1_test_predictions.csv` and `model1_metrics.json` from Colab; the backend turns them into the files above with `python -m scripts.convert_ml_outputs` (see `docs/backend_plan.md`, Stage 7).
 
 ---
 
@@ -359,5 +370,6 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-10 | v0.3 data is US (ACN): station local time, USD, US holidays; added `meta.currency`, `meta.json`, optional `arrivals_actual` | |
 | 2026-10-10 | v0.2 renamed to AmpWise; added demo reset, scenarios endpoints, Firestore section (no login) | |
 | 2026-10-10 | v0.1 first draft | |

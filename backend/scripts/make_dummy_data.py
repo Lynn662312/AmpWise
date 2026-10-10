@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 
 from app.core.config import get_settings
+from app.utils import mock_data
 
 MYT = timezone(timedelta(hours=8))
 START = datetime(2026, 3, 16, tzinfo=MYT)
@@ -23,6 +24,12 @@ FESTIVE_END = datetime(2026, 3, 30, 23, 30, tzinfo=MYT)
 FESTIVE_MULTIPLIER = 1.7
 
 PARAMS = {"avg_charge_min": 38, "rm_per_session": 35.0, "max_tolerable_wait_min": 45}
+META = {
+    "corridor_name": mock_data.META["corridor_name"],
+    "currency": "RM",
+    "festive_periods": mock_data.META["festive_periods"],
+    "demo_times": mock_data.META["demo_times"],
+}
 
 # "load" = share of capacity used at the normal daily peak.
 STATIONS = [
@@ -66,14 +73,15 @@ def _forecasts(rng: random.Random) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _health(rng: random.Random) -> pd.DataFrame:
+def health_rows(stations: list[dict], first_day: date, days: int, faults: dict, rng: random.Random) -> pd.DataFrame:
+    """One row per charger per day; chargers in `faults` switch status on their fault date."""
     rows = []
-    for station in STATIONS:
+    for station in stations:
         for n in range(1, station["n_chargers"] + 1):
             charger_id = f"{station['station_id']}_c{n}"
-            fault = FAULTS.get(charger_id)
-            for d in range(DAYS):
-                day = START.date() + timedelta(days=d)
+            fault = faults.get(charger_id)
+            for d in range(days):
+                day = first_day + timedelta(days=d)
                 row = {
                     "charger_id": charger_id, "station_id": station["station_id"], "date": day,
                     "power_ratio": round(rng.uniform(0.92, 0.97), 2), "baseline": 0.94,
@@ -85,6 +93,10 @@ def _health(rng: random.Random) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def fault_labels(faults: dict) -> pd.DataFrame:
+    return pd.DataFrame([{"charger_id": c, "fault_type": f[0], "start_date": f[1]} for c, f in faults.items()])
+
+
 def write_dummy_data(out_dir: str) -> None:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -92,11 +104,10 @@ def write_dummy_data(out_dir: str) -> None:
 
     pd.DataFrame(STATIONS).drop(columns="load").to_parquet(out / "stations.parquet", index=False)
     _forecasts(rng).to_parquet(out / "forecasts.parquet", index=False)
-    _health(rng).to_parquet(out / "health.parquet", index=False)
-    pd.DataFrame(
-        [{"charger_id": c, "fault_type": f[0], "start_date": f[1]} for c, f in FAULTS.items()]
-    ).to_parquet(out / "fault_labels.parquet", index=False)
+    health_rows(STATIONS, START.date(), DAYS, FAULTS, rng).to_parquet(out / "health.parquet", index=False)
+    fault_labels(FAULTS).to_parquet(out / "fault_labels.parquet", index=False)
     (out / "params.json").write_text(json.dumps(PARAMS, indent=2), encoding="utf-8")
+    (out / "meta.json").write_text(json.dumps(META, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 if __name__ == "__main__":

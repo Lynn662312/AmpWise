@@ -196,10 +196,10 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 
 **阶段 3b：AI 建议（12–16h）/ Phase 3b: AI advice**
 
-- [ ] `.env` 加 `LLM_API_KEY`、`LLM_MODEL`，确认 `.gitignore` 包含 `.env` / add keys to `.env`, make sure `.env` is git-ignored
-- [ ] `llm.py`：`build_facts`、`generate_advice`、`fallback_advice`、`get_advice`
-- [ ] `POST /api/actions/{id}/advice` 接上，AI 失败时返回模板（仍是 200）/ wire up; template fallback on failure, still 200
-- [ ] 演示前对 `demo_times` 预热缓存 / pre-warm the cache for `demo_times` before the demo
+- [ ] `.env` 加 `LLM_API_KEY`、`LLM_MODEL`，确认 `.gitignore` 包含 `.env` / add keys to `.env`, make sure `.env` is git-ignored — **待办 To do**：`.env` 已被 git 忽略，还需要填入真实的 key / `.env` is git-ignored; a real key still has to be added
+- [x] `llm.py`：`build_facts`、`generate_advice`、`fallback_advice`、`get_advice` — **已完成 Done**（未用真实 key 测试 / not yet tested with a real key）
+- [x] `POST /api/actions/{id}/advice` 接上，AI 失败时返回模板（仍是 200）/ wire up; template fallback on failure, still 200 — **已完成 Done**
+- [ ] 演示前对 `demo_times` 预热缓存 / pre-warm the cache for `demo_times` before the demo — **脚本已写好 Script ready**：`python -m scripts.prewarm_advice`，演示前运行 / run it before the demo
 
 **阶段 4：证明效果（14–20h）/ Phase 4: prove it**
 

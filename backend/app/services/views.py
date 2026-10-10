@@ -8,7 +8,6 @@ from app.services.classifier import latest_health, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import build_action_list, upcoming_slots
 from app.services.queueing import predict_wait
-from app.utils import mock_data
 
 
 def wait_level(wait_min: float) -> str:
@@ -19,11 +18,9 @@ def wait_level(wait_min: float) -> str:
 
 
 def build_meta(data: DataStore) -> dict[str, Any]:
-    # Corridor name, festive periods and demo times are not in the ML files yet,
-    # so they still come from the contract's example.
     slots = data.forecasts["slot_start"]
     return {
-        **mock_data.meta(),
+        **data.meta,
         "time_range": {"start": slots.min().isoformat(), "end": slots.max().isoformat()},
         "assumptions": {
             "rm_per_session": data.params["rm_per_session"],

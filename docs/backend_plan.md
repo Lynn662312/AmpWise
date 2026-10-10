@@ -8,8 +8,8 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 1 | Mock API for the frontend | Done |
 | 2 | Calculation core | Done |
 | 3 | Action list on parquet data | Done |
-| 4 | AI advice | Next |
-| 5 | What-if and backtest | |
+| 4 | AI advice | Built, needs a real key |
+| 5 | What-if and backtest | Next |
 | 6 | Frontend integration (on dummy data) | |
 | 7 | ML integration (Colab outputs) | |
 | 8 | Deploy and optional extras | |
@@ -99,15 +99,26 @@ Assumptions to confirm with the team:
 - Urgency: safety fault is `critical`; otherwise `high` from RM 1,000, `medium` from RM 200, else `low`.
 - `/api/meta` takes `time_range` and `assumptions` from the data; corridor name, festive periods and demo times still come from the contract example.
 
-## Stage 4 — AI advice
+## Stage 4 — AI advice — Built, needs a real key to finish
 
 In plain words: the AI rewrites our facts into advice and steps. It never decides ranking or numbers.
 
-- [ ] `app/services/llm.py` — `build_facts`, `generate_advice` (8 s timeout), `fallback_advice`, `check_numbers`, `get_advice` with a cache
-- [ ] `POST /api/actions/{id}/advice` — always 200; `source: "template"` when the AI fails
-- [ ] Pre-warm script for `meta.demo_times` in `en`, `zh`, `ms`
+- [x] `app/services/llm.py` — `build_facts`, `generate_advice` (8 s timeout), `fallback_advice`, `check_numbers`, `get_advice` with a cache
+- [x] `POST /api/actions/{id}/advice` — always 200; `source: "template"` when the AI fails
+- [x] `scripts/prewarm_advice.py` — calls the running server for every demo time, action and language
+- [x] `tests/test_llm.py` — cache, timeout fallback, invented numbers rejected, no key
+- [ ] Team picks the AI provider, then put its API key and model name in `backend/.env` and try it once; the real AI call has only been tested with a stand-in and with fake keys
+- [ ] Run `python -m scripts.prewarm_advice http://localhost:8000` before the demo, and again after every server restart
 
-How to test: with a key, `source` is `"llm"`; remove `LLM_API_KEY` and it is `"template"`, still 200.
+How to test: `pytest -v` shows 48 passed. Without a key the endpoint returns `source: "template"`, still 200. With a key it returns `source: "llm"`, and a second identical call returns `cached: true`.
+
+Notes:
+
+- The provider follows `LLM_MODEL`, so switching needs only the two `.env` lines: a name starting with `claude` goes to Anthropic, `gemini` to Google, anything else to OpenAI.
+- A chat subscription (Claude Pro, ChatGPT Plus) does not include an API key; API access is a separate account with its own billing.
+- Only AI answers are cached, so a failed call is retried next time.
+- Template advice is English only, and the pre-warm script warms English only.
+- The cache is in memory and is lost when the server restarts.
 
 ## Stage 5 — What-if and backtest
 
@@ -129,10 +140,21 @@ How to test: fixing a broken charger must lower the wait and raise revenue; "our
 
 ML trains in Colab and exports result files. The backend only reads those files, never the notebook or the model.
 
-- [ ] Agree with ML that Colab's last cell writes exactly the contract section 5 files; give them `make_dummy_data.py` as the format reference
+The data is US (ACN dataset, California): test window 2019-12-01 to 2020-02-29, US holidays, USD. The demo replays that window with the time slider; it does not forecast 2026.
+
+How to bring ML's files in:
+
+1. In Colab, download `model1_test_predictions.csv` and `model1_metrics.json` (Files panel on the left, right-click, Download).
+2. Put both in `ml/outputs/raw/` on your machine.
+3. From `backend`: `python -m scripts.convert_ml_outputs`, then `python -m scripts.check_data`.
+4. Restart the server with `MOCK=0`.
+
+- [x] `scripts/convert_ml_outputs.py` — renames ML's columns, converts UTC to California time, applies the assumed festive multiplier, and writes all the files the backend reads (tested on a made-up file in ML's format, not yet on the real one)
+- [ ] Run it on ML's real files and tune the placeholders at the top of the script: station names, coordinates, charger counts, revenue per session, average charge time
+- [ ] Replace the placeholder charger faults when ML 2 delivers `health.parquet` and `fault_labels.parquet`
 - [ ] Put the files in `DATA_DIR`, replacing the dummy ones
-- [ ] Startup validation: missing column, wrong type, slots not 30 minutes, timestamps without `+08:00`
-- [ ] Update `time_range`, `festive_periods`, `demo_times` in `/api/meta` to the real date range
+- [x] `scripts/check_data.py` — run `python -m scripts.check_data ../ml/outputs` on ML's files; it reports missing columns, unknown station ids, slots that are not 30 minutes, timestamps not in `+08:00`, unknown status values and charger counts that do not match
+- [x] `time_range`, `festive_periods`, `demo_times` and `currency` in `/api/meta` now come from the data files (`meta.json`, written by the converter)
 - [ ] Check the numbers look sensible and re-run the frontend walkthrough
 
 ## Stage 8 — Deploy and optional extras

@@ -27,6 +27,7 @@ class Assumptions(BaseModel):
 
 class Meta(BaseModel):
     corridor_name: str
+    currency: str
     time_range: TimeRange
     festive_periods: list[FestivePeriod]
     demo_times: list[DemoTime]
