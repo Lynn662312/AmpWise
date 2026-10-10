@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: portpulse-ampwise-api
+    runtime: python
+    plan: free
+    branch: final
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: MOCK
+        value: "0"
+      - key: DATA_DIR
+        value: ./data
+      - key: CORS_ORIGINS
+        value: http://localhost:5173
