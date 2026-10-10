@@ -35,3 +35,7 @@ class Advice(BaseModel):
     caveats: list[str]
     source: Literal["llm", "template"]
     cached: bool
+
+
+class ActionStatusRequest(BaseModel):
+    state: Literal["assigned", "done"]

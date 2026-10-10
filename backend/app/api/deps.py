@@ -11,6 +11,11 @@ from app.services.data_loader import DataStore
 from app.utils import mock_data
 
 
+def get_firestore(request: Request) -> Any | None:
+    """The initialized backend-only Firestore client, when configured."""
+    return getattr(request.app.state, "firestore", None)
+
+
 def get_data(request: Request, settings: Settings = Depends(get_settings)) -> DataStore | None:
     """The loaded ML files, or None in mock mode."""
     return None if settings.mock else request.app.state.data
