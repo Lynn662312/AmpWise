@@ -66,5 +66,6 @@ ml/models/exported/*
 *.tflite
 *.ckpt
 ml/data/
+ml/outputs/
 wandb/
 mlruns/
