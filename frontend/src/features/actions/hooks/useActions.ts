@@ -3,10 +3,10 @@ import { useSimulatedTime } from "@/context/TimeContext"
 import { fetchActions } from "@/services/action-service"
 
 export function useActions() {
-  const { selectedTime } = useSimulatedTime()
+  const { selectedIsoTime } = useSimulatedTime()
   return useQuery({
-    queryKey: ["actions", selectedTime, 50],
-    queryFn: () => fetchActions(selectedTime, 50),
+    queryKey: ["actions", selectedIsoTime, 50],
+    queryFn: ({ signal }) => fetchActions(selectedIsoTime, 50, signal),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   })

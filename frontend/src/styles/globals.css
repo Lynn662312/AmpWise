@@ -182,6 +182,28 @@
 
 .pulse-ring { animation: pulse-ring 2.4s ease-out infinite; }
 
+@keyframes action-drawer-enter-mobile {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes action-drawer-enter-desktop {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.action-details-drawer {
+  animation: action-drawer-enter-mobile 280ms ease-out both;
+}
+
+@media (min-width: 768px) {
+  .action-details-drawer { animation-name: action-drawer-enter-desktop; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-details-drawer { animation: none; }
+}
+
 @keyframes bell-ring {
   0%, 100% { transform: rotate(0deg); }
   20% { transform: rotate(-12deg); }

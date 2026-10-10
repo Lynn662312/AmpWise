@@ -8,10 +8,6 @@
     { "day": "Sat", "energy": 78 },
     { "day": "Sun", "energy": 71 }
   ],
-  "overview_stations": [
-    { "station_id": "kl-sentral", "status": "Active", "ports": "8 / 12", "load": "67%", "tone": "success" },
-    { "station_id": "bangsar-south", "status": "Congested", "ports": "6 / 8", "load": "88%", "tone": "warning" },
-    { "station_id": "cyberjaya-techpark", "status": "Active", "ports": "4 / 10", "load": "42%", "tone": "success" }
-  ],
+  "overview_stations": [],
   "summary": { "energy_delivered_kwh": 1284, "active_stations": 18, "total_stations": 24, "live_sessions": 42, "network_uptime_pct": 99.2, "weekly_energy_kwh": 8492 }
 }

@@ -4,10 +4,10 @@ export type RepairTiming = "fix_now" | "after_peak"
 export type WhatIfRequest = {
   scenario: ScenarioType
   station_id: string
-  charger_id: string | null
-  n_chargers: number | null
-  discount_pct: number | null
   time: string
+  charger_id?: string
+  n_chargers?: number
+  discount_pct?: number
 }
 
 export type WhatIfResult = {

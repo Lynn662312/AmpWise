@@ -1,9 +1,5 @@
-export function formatNumber(value: number, maximumFractionDigits = 1, locale = "en-MY") {
+export function formatNumber(value: number, maximumFractionDigits = 1, locale = "en-US") {
   return new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value)
-}
-
-export function formatRm(value: number) {
-  return `RM ${formatNumber(value, 0)}`
 }
 
 export function formatPercent(value: number) {

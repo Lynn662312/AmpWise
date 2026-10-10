@@ -23,6 +23,7 @@ import { PresentationMenu } from "@/features/demo/components/PresentationMenu"
 import { DemoStepControls } from "@/features/demo/components/DemoStepControls"
 import { useDemoMode } from "@/features/demo/context/DemoContext"
 import { getMockDashboardData, getMockStations } from "@/services/mockService"
+import { useSystemHealth } from "@/features/system/hooks/useSystemHealth"
 
 type DashboardStation = { name: string; area: string; status: string; ports: string; load: string; tone: string }
 
@@ -32,7 +33,6 @@ const navItems = [
   { label: "Actions", to: "/actions", icon: ClipboardCheck },
   { label: "What-if", to: "/what-if", icon: WandSparkles },
   { label: "Stations", to: "/stations", icon: EvStationIcon },
-  { label: "Sessions", to: "/sessions", icon: Activity },
   { label: "Results", to: "/results", icon: TrendingUp },
 ]
 
@@ -41,6 +41,7 @@ function App() {
 }
 
 function AppShell() {
+  useSystemHealth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const { selectedTime, setSelectedTime, timeLabel } = useSimulatedTime()
@@ -66,7 +67,7 @@ function AppShell() {
       <main className={cn("transition-[padding] duration-200", !presentationMode && "lg:pl-64")}>
         <header className="flex h-20 items-center justify-between border-b border-border/70 px-5 sm:px-8 lg:px-12">
           <button className="rounded-xl p-2 hover:bg-muted lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={21} /></button>
-          <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} /><span>Malaysia Operations</span><ChevronRight size={14} /><span className="font-semibold text-foreground">Today</span></div>
+          <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} /><span>California Operations</span><ChevronRight size={14} /><span className="font-semibold text-foreground">Today</span></div>
           <div className="ml-auto flex items-center gap-2"><label className="hidden items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground md:flex">Simulated time <input type="range" min="0" max="1439" step="30" value={selectedTime} onChange={(event) => setSelectedTime(Number(event.target.value))} className="w-28 accent-[var(--accent)]" aria-label="Simulated time" /><span className="min-w-14 text-right text-foreground">{timeLabel}</span></label><PresentationMenu /><button className="hidden rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground sm:block" aria-label="Search"><Search size={19} /></button><NotificationBell /><button className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button></div>
         </header>
         <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-12"><Routes><Route path="/map" element={<MapPage />} /><Route path="/actions" element={<ActionsPage />} /><Route path="/what-if" element={<WhatIfPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/stations/:id" element={<StationDetailPage />} /><Route path="/chargers/:id" element={<ChargerHealthPage />} /><Route path="*" element={<Dashboard />} /></Routes></div>
@@ -97,7 +98,7 @@ function Dashboard() {
       <Card className="min-h-[355px] p-5 sm:p-7"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">{dashboardData.summary.weekly_energy_kwh.toLocaleString()}</h2><span className="mb-1 text-sm text-muted-foreground">kWh this week</span></div></div><button className="rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">Last 7 days <ChevronRight className="ml-1 inline" size={14} /></button></div><div className="mt-8 h-48"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={9} /><YAxis hide domain={[0, 90]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer></div></Card>
       <NetworkStatusCard onlineStations={dashboardData.summary.active_stations} totalStations={dashboardData.summary.total_stations} uptime={dashboardData.summary.network_uptime_pct} />
     </section>
-    <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Button variant="ghost" className="px-2 text-xs">View all <ChevronRight size={14} /></Button></div><div className="space-y-2">{stations.map((station) => <StationRow key={station.name} {...station} />)}</div></Card><QuickActions /></section>
+    <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Button variant="ghost" className="px-2 text-xs">View all <ChevronRight size={14} /></Button></div><div className="space-y-2">{stations.length ? stations.map((station) => <StationRow key={station.name} {...station} />) : <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Per-station session data is not available yet.</p>}</div></Card><QuickActions /></section>
   </div>
 }
 

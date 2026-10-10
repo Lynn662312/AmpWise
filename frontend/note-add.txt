@@ -1,0 +1,194 @@
+AmpWise — Backend items still missing
+=====================================
+
+Why now
+-------
+
+The frontend already supports the current v0.2 API endpoints. The items below
+are not covered by the existing contract, so the frontend cannot safely provide
+these features with real backend data yet.
+
+1. Station regions — Needed for API region switching
+----------------------------------------------------
+
+Current gap:
+
+- Local JSON supports Malaysia and California.
+- The current station API response does not provide a region field.
+- The frontend cannot reliably filter API stations by region.
+
+Backend request:
+
+- Add `region` to every station response, or
+- Add a documented region metadata endpoint.
+
+Affected page: `/map`
+Priority: Recommended
+
+2. Station-to-charger discovery — Required
+------------------------------------------
+
+Current gap:
+
+- The frontend receives station records but cannot discover verified charger
+  IDs for every station.
+- The frontend must not construct charger IDs from `n_chargers`.
+
+Suggested endpoint:
+
+GET /api/stations/{station_id}/chargers
+
+Minimum response fields:
+
+- `charger_id`
+- `station_id`
+- charger specifications, only when available
+
+Affected pages: Station Detail, Charger Health, What-if
+Priority: Required
+
+3. Sessions and network uptime — Required for live Sessions data
+---------------------------------------------------------------
+
+Current gap:
+
+- The current contract does not define session records or network uptime data.
+- The Sessions page cannot display verified live session and uptime metrics.
+
+Suggested endpoints:
+
+- GET /api/sessions
+- GET /api/network/status
+
+Please define time-range parameters and response fields for:
+
+- session records
+- online station count
+- total station count
+- uptime percentage
+
+Affected page: `/sessions`
+Priority: Required
+
+4. Delayed-repair simulation — Optional
+----------------------------------------
+
+Current gap:
+
+- v0.2 supports `fix_now`.
+- There is no repair date or repair offset parameter.
+- The frontend cannot send a real “fix after the next peak” comparison.
+
+Suggested request addition:
+
+- `repair_time`, or
+- `repair_offset_hours`
+
+Please define how the backend calculates the delayed outcome. Until then,
+`after_peak` remains demo-only in the frontend.
+
+Affected page: `/what-if`
+Priority: Optional
+
+5. Saved scenarios — Optional
+-----------------------------
+
+Current gap:
+
+- Scenario persistence is not defined in v0.2.
+- The frontend does not call Firestore or persist scenarios locally.
+
+Suggested endpoints:
+
+- GET /api/scenarios
+- POST /api/scenarios
+- DELETE /api/scenarios/{scenario_id}
+
+Please define scenario ID, saved inputs, owner/session, timestamps and access
+scope before this UI is enabled.
+
+Affected pages: `/what-if`, Presentation Mode
+Priority: Optional
+
+6. Demo reset — Optional
+------------------------
+
+Current gap:
+
+- Presentation Mode has no backend reset capability.
+- The frontend cannot reset server-side demo scenarios or state.
+
+Suggested endpoint:
+
+POST /api/demo/reset
+
+Suggested request:
+
+```json
+{
+  "clear_scenarios": false
+}
+```
+
+Please document authorization and the exact reset scope.
+
+Affected feature: Presentation Mode
+Priority: Optional
+
+7. Server-driven notifications — Optional
+------------------------------------------
+
+Current gap:
+
+- There is no notification endpoint or event stream in the current contract.
+- The frontend currently derives critical safety alerts from the actions query.
+
+If server-driven alerts are required, define one of:
+
+- GET /api/notifications
+- Server-sent events
+- WebSocket events
+
+Every event should include a stable `event_id` or `action_id` for deduplication.
+
+Affected feature: Global notification bell
+Priority: Optional
+
+8. Production deployment configuration — Required before deployment
+--------------------------------------------------------------------
+
+Current gap:
+
+- The production API URL is not defined in the frontend repository.
+- Production CORS has not been confirmed.
+
+Backend handoff needed:
+
+- Production API base URL for `VITE_API_BASE_URL`.
+- Allowed frontend origin(s) in FastAPI CORS settings.
+- Confirmation that all v0.2 routes are reachable from the deployed frontend.
+
+Affected pages: All API-connected pages
+Priority: Required
+
+9. Real ML evaluation confirmation — Required for production claims
+--------------------------------------------------------------------
+
+Current gap:
+
+- The frontend can display the v0.2 backtest schema, but it cannot confirm
+  whether the backend is running real ML output or demo fixtures.
+
+Backend handoff needed:
+
+- Confirm the `MOCK=0` runtime configuration.
+- Provide one representative response from each model-backed endpoint.
+- Confirm which Results values are real evaluation results versus simulated
+  demonstration data.
+
+Affected pages: Map, Actions, Charger Health, What-if, Results
+Priority: Required
+
+Until these items are confirmed, the frontend will show unavailable states or
+explicit demo data where necessary. It will not invent charger IDs, regional
+metadata, session metrics, delayed-repair results or production ML evidence.

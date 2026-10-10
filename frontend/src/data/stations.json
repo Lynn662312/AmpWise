@@ -1,15 +1,6 @@
 [
-  { "id": "kl-sentral", "name": "AmpWise KL Sentral", "region": "malaysia", "location": "Brickfields, Kuala Lumpur", "lat": 3.1342, "lon": 101.6866, "n_chargers": 12, "n_working": 10, "power_kw": 180 },
-  { "id": "bangsar-south", "name": "AmpWise Bangsar South", "region": "malaysia", "location": "Bangsar South, Kuala Lumpur", "lat": 3.1118, "lon": 101.6625, "n_chargers": 8, "n_working": 6, "power_kw": 150 },
-  { "id": "putrajaya-gateway", "name": "AmpWise Putrajaya Gateway", "region": "malaysia", "location": "Presint 15, Putrajaya", "lat": 2.9264, "lon": 101.6964, "n_chargers": 16, "n_working": 15, "power_kw": 240 },
-  { "id": "cyberjaya-techpark", "name": "AmpWise Cyberjaya TechPark", "region": "malaysia", "location": "Cyberjaya, Selangor", "lat": 2.9213, "lon": 101.6559, "n_chargers": 10, "n_working": 9, "power_kw": 180 },
-  { "id": "seremban-north", "name": "AmpWise Seremban North", "region": "malaysia", "location": "Seremban, Negeri Sembilan", "lat": 2.7422, "lon": 101.9381, "n_chargers": 8, "n_working": 5, "power_kw": 120 },
-  { "id": "melaka-central", "name": "AmpWise Melaka Central", "region": "malaysia", "location": "Ayer Keroh, Melaka", "lat": 2.2654, "lon": 102.2802, "n_chargers": 14, "n_working": 11, "power_kw": 200 },
-  { "id": "muar-rest-stop", "name": "AmpWise Muar Rest Stop", "region": "malaysia", "location": "Pagoh, Johor", "lat": 2.1172, "lon": 102.6915, "n_chargers": 6, "n_working": 0, "power_kw": 120 },
-  { "id": "iskandar-puteri", "name": "AmpWise Iskandar Puteri", "region": "malaysia", "location": "Iskandar Puteri, Johor", "lat": 1.4222, "lon": 103.6284, "n_chargers": 12, "n_working": 10, "power_kw": 180 },
-  { "id": "jb-city-centre", "name": "AmpWise JB City Centre", "region": "malaysia", "location": "Johor Bahru, Johor", "lat": 1.4927, "lon": 103.7414, "n_chargers": 18, "n_working": 16, "power_kw": 300 },
-  { "id": "California_Garage_01", "name": "California Garage 01", "region": "california", "location": "California, USA", "lat": 34.134765, "lon": -118.127183, "n_chargers": 8, "n_working": 6, "power_kw": 150 },
-  { "id": "S_Wilson_Garage_01", "name": "S Wilson Garage 01", "region": "california", "location": "S Wilson, California, USA", "lat": 34.140269, "lon": -118.128354, "n_chargers": 6, "n_working": 5, "power_kw": 120 },
-  { "id": "California_Garage_02", "name": "California Garage 02", "region": "california", "location": "California, USA", "lat": 34.134765, "lon": -118.127183, "n_chargers": 10, "n_working": 8, "power_kw": 180 },
-  { "id": "Arroyo_Garage_01", "name": "Arroyo Garage 01", "region": "california", "location": "Arroyo, California, USA", "lat": 34.198841, "lon": -118.170402, "n_chargers": 4, "n_working": 3, "power_kw": 100 }
+  { "id": "California_Garage_01", "name": "California Garage 01", "region": "california", "lat": 34.134765, "lon": -118.127183 },
+  { "id": "S_Wilson_Garage_01", "name": "S Wilson Garage 01", "region": "california", "lat": 34.140269, "lon": -118.128354 },
+  { "id": "California_Garage_02", "name": "California Garage 02", "region": "california", "lat": 34.134765, "lon": -118.127183 },
+  { "id": "Arroyo_Garage_01", "name": "Arroyo Garage 01", "region": "california", "lat": 34.198841, "lon": -118.170402 }
 ]

@@ -2,11 +2,10 @@ import type { Action } from "@/features/actions/types"
 import type { ChargingStation } from "@/features/map/types"
 import { issueConfig } from "@/features/actions/config/issueConfig"
 import { resolveStationName } from "@/features/actions/utils/actionHelpers"
-import { getMockChargers } from "@/services/mockService"
 import type { Notification, NotificationSource } from "@/features/notifications/types"
 
 export function buildNotificationId(action: Action) {
-  return `${action.station_id}__${action.charger_id ?? "station"}__${action.issue_type}`
+  return action.id
 }
 
 export function mapActionsToNotifications(actions: readonly Action[], stations: readonly ChargingStation[], source: NotificationSource): Notification[] {
@@ -27,7 +26,7 @@ export function mapActionsToNotifications(actions: readonly Action[], stations: 
 
 export function resolveNotificationRoute(notification: Notification, stations: readonly ChargingStation[]) {
   const station = stations.find(({ id }) => id === notification.stationId)
-  if (notification.chargerId && station && getMockChargers(station).some(({ id }) => id === notification.chargerId)) return `/chargers/${notification.chargerId}`
+  if (notification.chargerId && station) return `/chargers/${encodeURIComponent(notification.chargerId)}?station=${encodeURIComponent(station.id)}`
   if (station) return `/stations/${station.id}`
   return "/actions"
 }

@@ -2,8 +2,11 @@ export type StationLevel = "low" | "moderate" | "high" | "unavailable"
 
 export type StationForecast = {
   time: string
+  arrivals: number | null
   predicted_wait_min: number | null
   level: StationLevel
+  arrivals_baseline: number | null
+  is_festive: boolean
 }
 
 export type ChargingStation = {

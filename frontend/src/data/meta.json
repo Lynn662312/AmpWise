@@ -1,8 +1,18 @@
 {
+  "corridor_name": "California EV Corridor",
   "source": "mock",
-  "corridor": "KL–JB corridor",
-  "timezone": "Asia/Kuala_Lumpur",
+  "corridor": "California corridor",
+  "timezone": "America/Los_Angeles",
+  "currency": "USD",
+  "time_range": { "start": "2019-12-01T00:00:00-08:00", "end": "2020-02-29T23:30:00-08:00", "step_minutes": 30 },
+  "demo_times": [
+    { "label": "Normal operations", "time": "2019-12-10T08:00:00-08:00" },
+    { "label": "Midday demand", "time": "2019-12-10T12:00:00-08:00" },
+    { "label": "Evening peak", "time": "2019-12-10T18:00:00-08:00" }
+  ],
+  "festive_periods": [{ "name": "Winter holidays", "start": "2019-12-20T00:00:00-08:00", "end": "2020-01-02T23:30:00-08:00" }],
+  "assumptions": { "rm_per_session": 35, "max_tolerable_wait_min": 45, "avg_charge_min": 38 },
   "simulation_time_minutes": { "min": 0, "max": 1439, "step": 30 },
-  "festive_dates": ["2026-10-10T08:00:00+08:00"],
-  "evaluation_weeks": ["2026-10-05", "2026-09-28", "2026-09-21"]
+  "festive_dates": ["2019-12-25T08:00:00-08:00"],
+  "evaluation_weeks": ["2020-02-24", "2020-02-17", "2020-02-10"]
 }

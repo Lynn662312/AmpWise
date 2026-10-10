@@ -1,6 +1,6 @@
 import type { Action } from "@/features/actions/types"
 import type { ChargingStation, StationLevel } from "@/features/map/types"
-import type { ChargerHealthPoint } from "@/features/chargers/types"
+import type { ChargerHealth } from "@/features/chargers/types"
 import type { BacktestResult, EvaluationWeek } from "@/features/results/types"
 import type { RepairTiming, WhatIfRequest, WhatIfResult } from "@/features/what-if/types"
 import stationsData from "@/data/stations.json"
@@ -14,6 +14,7 @@ import demoScenarios from "@/data/demo-scenarios.json"
 import metaData from "@/data/meta.json"
 import sessionsData from "@/data/sessions.json"
 import { regions, type RegionId } from "@/features/map/config/regions"
+import type { ApiMeta } from "@/types/api"
 
 type StationSeed = typeof stationsData[number]
 type ForecastProfile = typeof forecastProfiles[number]
@@ -81,9 +82,9 @@ export function getMockStations(timeMinutes: number): ChargingStation[] {
       level: getLevel(predictedWait, station.n_working ?? 0),
       forecast: [
         ...(operational ? [
-          { time: "Now", predicted_wait_min: predictedWait, level: getLevel(predictedWait, station.n_working ?? 0) },
-          { time: "+1h", predicted_wait_min: nextWait, level: getLevel(nextWait, station.n_working ?? 0) },
-          { time: "+2h", predicted_wait_min: laterWait, level: getLevel(laterWait, station.n_working ?? 0) },
+          { time: "Now", arrivals: null, predicted_wait_min: predictedWait, arrivals_baseline: null, level: getLevel(predictedWait, station.n_working ?? 0), is_festive: false },
+          { time: "+1h", arrivals: null, predicted_wait_min: nextWait, arrivals_baseline: null, level: getLevel(nextWait, station.n_working ?? 0), is_festive: false },
+          { time: "+2h", arrivals: null, predicted_wait_min: laterWait, arrivals_baseline: null, level: getLevel(laterWait, station.n_working ?? 0), is_festive: false },
         ] : []),
       ],
     }
@@ -104,22 +105,35 @@ export function getMockChargers(station: ChargingStation | null): MockCharger[] 
   })
 }
 
-export function getMockActions(): Action[] { return actionsData as Action[] }
+export function getMockActions(): Action[] {
+  return (actionsData as Omit<Action, "id" | "station_name" | "state">[]).map((action) => ({
+    ...action,
+    id: `action_${action.rank}_${action.station_id}`,
+    station_name: stationsData.find((station) => station.id === action.station_id)?.name ?? action.station_id,
+    state: "open" as const,
+  }))
+}
 
-export function getMockChargerHealth(chargerId: string, station: ChargingStation | null, days: number): ChargerHealthPoint[] {
+export function getMockChargerHealth(chargerId: string, station: ChargingStation | null, days: number): ChargerHealth {
   const charger = getMockChargers(station).find(({ id }) => id === chargerId)
   const profileName = charger?.status === "degraded" || charger?.status === "offline" ? "degraded" : "working"
   const profile = healthProfiles[profileName] as HealthProfile
-  return Array.from({ length: Math.max(1, Math.min(days, 14)) }, (_, index) => {
+  const series = Array.from({ length: Math.max(1, Math.min(days, 14)) }, (_, index) => {
     const actual = Math.max(0, profile.actual_start + index * profile.actual_step)
     const fault = Math.max(0, profile.fault_start + index * profile.fault_step + (profileName === "working" ? (index % 2) * 0.02 : 0))
     return { time: `Day ${index + 1}`, actual_power_ratio: Number(actual.toFixed(2)), baseline_power_ratio: 1, fault_probability: Number(fault.toFixed(2)) }
   })
+  const status = charger?.status === "working" ? "healthy" : charger?.status === "degraded" ? "degraded" : charger?.status === "offline" ? "safety_fault" : "unknown"
+  return { charger_id: chargerId, station_id: station?.id ?? "", status, p_fault: series.at(-1)?.fault_probability ?? null, evidence: [], degraded_since: charger?.status === "degraded" ? series[0]?.time ?? null : null, series }
 }
 
-export function getMockBacktest(week: string): BacktestResult | null { return (backtestData.results as Record<string, BacktestResult>)[week] ?? null }
+export function getMockBacktest(week: string): BacktestResult | null {
+  const result = (backtestData.results as Record<string, Omit<BacktestResult, "week_label">>)[week]
+  const label = backtestData.weeks.find((item) => item.value === week)?.label ?? week
+  return result ? { ...result, week_label: label } : null
+}
 export function getEvaluationWeeks(): readonly EvaluationWeek[] { return backtestData.weeks }
-export function getMockMeta(): MockMeta { return metaData }
+export function getMockMeta(): ApiMeta { return { corridor_name: metaData.corridor_name, timezone: metaData.timezone, currency: metaData.currency, time_range: metaData.time_range, demo_times: metaData.demo_times, festive_periods: metaData.festive_periods, assumptions: metaData.assumptions } }
 export function getDemoScenarios(): readonly MockDemoScenario[] { return demoScenarios }
 export function getMockSessions() { return sessionsData }
 export function getMockDashboardData(): MockDashboardData { return sessionsData }

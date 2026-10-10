@@ -5,6 +5,8 @@ export type BacktestResult = {
   forecast_mae_baseline: number
   fault_precision: number
   fault_recall: number
+  daily: { date: string; wait_baseline_min: number; wait_ours_min: number }[]
+  week_label: string
 }
 
 export type EvaluationWeek = {

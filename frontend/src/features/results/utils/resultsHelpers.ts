@@ -1,5 +1,6 @@
 import type { BacktestResult } from "@/features/results/types"
-export { formatNumber, formatPercent, formatRm } from "@/lib/formatters"
+export { formatNumber, formatPercent } from "@/lib/formatters"
+export { formatCurrency, getCurrencyCode } from "@/lib/simulationConfig"
 
 export function getImpactMessage(result: BacktestResult) {
   if (result.queue_minutes_saved > 0 || result.rm_protected > 0) return "AmpWise reduced estimated waiting time in this evaluation."

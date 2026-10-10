@@ -1,12 +1,10 @@
 import { fetchJson } from "@/services/api-client"
+import type { ApiHealth, ApiMeta } from "@/types/api"
 
-export type ApiMeta = Record<string, unknown>
-export type ApiHealth = Record<string, unknown>
-
-export function fetchMeta() {
-  return fetchJson<ApiMeta>("/api/meta")
+export function fetchMeta(signal?: AbortSignal) {
+  return fetchJson<ApiMeta>("/api/meta", { signal })
 }
 
-export function fetchApiHealth() {
-  return fetchJson<ApiHealth>("/api/health")
+export function fetchApiHealth(signal?: AbortSignal) {
+  return fetchJson<ApiHealth>("/api/health", { signal })
 }

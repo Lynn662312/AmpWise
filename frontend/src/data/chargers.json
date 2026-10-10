@@ -1,5 +1,1 @@
-[
-  { "charger_id": "cyberjaya-techpark_c2", "station_id": "cyberjaya-techpark", "status": "degraded" },
-  { "charger_id": "kl-sentral_c7", "station_id": "kl-sentral", "status": "offline" },
-  { "charger_id": "seremban-north_c3", "station_id": "seremban-north", "status": "degraded" }
-]
+[]

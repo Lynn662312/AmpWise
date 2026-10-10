@@ -15,6 +15,7 @@ import type { StationFilter } from "@/features/map/types"
 import { regions, type RegionId } from "@/features/map/config/regions"
 import { filterStations } from "@/features/map/utils/mapHelpers"
 import { cn } from "@/lib/utils"
+import { isApiMode } from "@/services/api-client"
 
 export function MapPage() {
   const { timeLabel } = useSimulatedTime()
@@ -22,7 +23,7 @@ export function MapPage() {
   const { data, isError, refetch, isFetching } = useMapStations()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<StationFilter>("all")
-  const [region, setRegion] = useState<RegionId>("california")
+  const [region, setRegion] = useState<RegionId>(isApiMode ? "malaysia" : "california")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showStationRail, setShowStationRail] = useState(false)
   const stations = data?.stations ?? []

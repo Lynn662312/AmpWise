@@ -1,0 +1,139 @@
+AmpWise — Map data required for complete station cards
+=======================================================
+
+Why the map currently shows “Data unavailable”
+-----------------------------------------------
+
+The California station records currently contain only:
+
+- station ID
+- station name
+- region
+- latitude
+- longitude
+
+They intentionally do not contain charger counts, working chargers, power,
+predicted wait or congestion level. Therefore the frontend correctly displays
+“Data unavailable” instead of inventing operational values.
+
+This is not a UI failure. The backend must provide the missing operational data
+for each station at the selected simulated time.
+
+Backend data required
+---------------------
+
+Update:
+
+GET /api/stations?time={iso_timestamp}
+
+Each station response needs these fields:
+
+```json
+{
+  "id": "California_Garage_01",
+  "name": "California Garage 01",
+  "region": "california",
+  "lat": 34.134765,
+  "lon": -118.127183,
+  "location": "California, USA",
+  "n_chargers": 8,
+  "n_working": 7,
+  "power_kw": 150,
+  "predicted_wait_min": 12,
+  "level": "green"
+}
+```
+
+Required field rules
+--------------------
+
+- `id` must remain unique and stable.
+- `name` must match the canonical station record.
+- `region` must be `california` for the California records.
+- `lat` and `lon` must remain unchanged from the source records.
+- `location` should be a real display location, not a generated label.
+- `n_chargers` must be a non-negative integer.
+- `n_working` must be between 0 and `n_chargers`.
+- `power_kw` must be the station's actual configured charging capacity.
+- `predicted_wait_min` must be null when no prediction exists.
+- `level` must be `green`, `amber`, `red`, or a documented unavailable value.
+- Missing operational values must be returned as `null`, not fabricated zeros.
+
+Forecast data required
+----------------------
+
+For each station with forecast support:
+
+GET /api/stations/{station_id}/forecast?start={iso_timestamp}&hours=2
+
+Each 30-minute forecast slot needs:
+
+```json
+{
+  "slot_start": "2026-10-10T08:00:00+08:00",
+  "arrivals": 14,
+  "arrivals_baseline": 11,
+  "wait_min": 12,
+  "is_festive": false
+}
+```
+
+If a station has no forecast, return an empty array or a documented 404/422
+response. Do not return made-up wait values.
+
+Charger discovery required
+--------------------------
+
+The map and What-if pages also need verified charger IDs:
+
+GET /api/stations/{station_id}/chargers
+
+Minimum response fields:
+
+- `charger_id`
+- `station_id`
+- charger status, when available
+- charger power, when available
+
+The frontend must not derive charger IDs from `n_chargers`.
+
+Region behavior required
+------------------------
+
+- Malaysia and California stations must be returned with their correct
+  `region` values.
+- The backend does not need to accept a region query parameter yet.
+- The frontend can filter the returned station list locally.
+- California stations must not be replaced with Malaysian stations.
+- Duplicate coordinates must remain separate records by unique station ID.
+
+Backend verification checklist
+------------------------------
+
+- Confirm the API is running with the intended data mode.
+- Confirm California records are included in the response.
+- Confirm operational fields are populated for California stations.
+- Confirm forecast records exist for the selected simulated time.
+- Confirm all timestamps use ISO 8601 with Malaysia `+08:00` where applicable.
+- Confirm the response is not a demo fixture when production ML data is claimed.
+- Confirm missing values are `null` and documented.
+
+Frontend result after the backend update
+----------------------------------------
+
+Once these fields are returned, the existing frontend will automatically use
+them for:
+
+- map marker status
+- station list status
+- working charger count
+- predicted wait
+- power display
+- station popup
+- KPI summaries
+- forecast preview
+- region filtering
+
+Until then, “Data unavailable” is the correct safe display for the missing
+California operational data. Malaysia mock mode remains available when the
+region is switched to Malaysia.
