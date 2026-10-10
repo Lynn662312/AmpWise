@@ -7,6 +7,7 @@ import pytest
 from app.services import backtest, whatif
 from app.services.data_loader import DataStore
 from app.services.priority import HORIZON_HOURS, outlook, upcoming_slots
+from app.services.queueing import predict_wait
 
 MYT = timezone(timedelta(hours=8))
 DAY_BEFORE_RAYA = datetime(2026, 3, 26, 14, 0, tzinfo=MYT)
@@ -32,6 +33,26 @@ def test_fix_revenue_is_served_sessions_times_revenue_per_session(data: DataStor
     gained = result["after_revenue_rm"] - result["before_revenue_rm"]
     assert gained == pytest.approx((broken["unserved"] - repaired["unserved"]) * 35.0, abs=0.01)
     assert "estimated" in result["summary"]
+    # The money at risk (unserved sessions x price) is what the page charts: it drops after the repair.
+    assert result["before_at_risk_rm"] == round(broken["unserved"] * 35.0, 2)
+    assert result["after_at_risk_rm"] == round(repaired["unserved"] * 35.0, 2)
+    assert result["after_at_risk_rm"] < result["before_at_risk_rm"]
+
+
+def test_whatif_wait_is_the_average_wait_not_the_capped_peak(data: DataStore) -> None:
+    slots = upcoming_slots(data, "stn_004", DAY_BEFORE_RAYA, HORIZON_HOURS)
+
+    def average_wait(chargers: int) -> float:
+        queue_minutes = sum(arrivals * predict_wait(arrivals, 38, chargers) for arrivals in slots["arrivals"])
+        return round(queue_minutes / slots["arrivals"].sum(), 1)
+
+    # Tapah has 2 chargers and is over capacity at the peak with 2 and still with 3:
+    # the peak wait is the 120-minute cap both times, but the average wait drops.
+    assert outlook(data, slots, 2)["peak_wait_min"] == outlook(data, slots, 3)["peak_wait_min"] == 120.0
+    result = whatif.simulate_add_chargers(data, "stn_004", 1, DAY_BEFORE_RAYA)
+    assert (result["before_wait_min"], result["after_wait_min"]) == (average_wait(2), average_wait(3))
+    assert result["after_wait_min"] < result["before_wait_min"]
+    assert "cuts the average wait" in result["summary"]
 
 
 def test_fixing_a_healthy_charger_changes_nothing(data: DataStore) -> None:

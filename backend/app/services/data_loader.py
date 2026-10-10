@@ -14,6 +14,7 @@ FAULT_LABEL_COLUMNS = ["charger_id", "fault_type", "start_date"]
 USER_REPORT_COLUMNS = ["charger_id", "reported_at"]
 ENERGY_COLUMNS = ["station_id", "slot_start", "energy_kwh"]
 SESSION_COLUMNS = ["station_id", "started_at", "ended_at"]
+CHARGER_EVENT_COLUMNS = ["charger_id", "time", "source", "message"]
 PARAM_KEYS = ["avg_charge_min", "rm_per_session"]
 META_KEYS = ["corridor_name", "currency", "festive_periods", "demo_times"]
 
@@ -29,12 +30,14 @@ class DataStore:
     report_categories: list[dict[str, Any]]  # share of driver complaints per category, for the pie chart
     energy: pd.DataFrame  # energy delivered per 30-minute slot, for the overview
     sessions: pd.DataFrame  # when each charging session started and ended, for the overview
+    charger_events: pd.DataFrame  # each charger's log: fault messages, readings, driver reports
     params: dict[str, float]
 
     def __post_init__(self) -> None:
         # Per-charger lookups, so a request does not scan the whole table once per charger.
         self.health_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.health.groupby("charger_id")))
         self.reports_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.user_reports.groupby("charger_id")))
+        self.events_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.charger_events.groupby("charger_id")))
         self.chargers_by_station: dict[str, list[str]] = (
             self.health.groupby("station_id")["charger_id"].unique().apply(list).to_dict()
         )
@@ -115,6 +118,10 @@ def load_sessions(data_dir: str) -> pd.DataFrame:
     return _load_optional(data_dir, "sessions.parquet", SESSION_COLUMNS, ["started_at", "ended_at"])
 
 
+def load_charger_events(data_dir: str) -> pd.DataFrame:
+    return _load_optional(data_dir, "charger_events.parquet", CHARGER_EVENT_COLUMNS, ["time"])
+
+
 def load_report_categories(data_dir: str) -> list[dict[str, Any]]:
     """Share of driver complaints per category. The file is optional: without it the list is empty."""
     path = Path(data_dir) / "report_categories.json"
@@ -140,5 +147,6 @@ def load_all(data_dir: str) -> DataStore:
         report_categories=load_report_categories(data_dir),
         energy=load_energy(data_dir),
         sessions=load_sessions(data_dir),
+        charger_events=load_charger_events(data_dir),
         params=load_params(data_dir),
     )

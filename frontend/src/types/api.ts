@@ -72,6 +72,12 @@ export type ApiChargerHealth = {
   degraded_since: string | null
 }
 
+export type ApiChargerEvent = {
+  time: string
+  source: "sensor" | "driver"
+  message: string
+}
+
 export type ApiStationCharger = {
   charger_id: string
   station_id: string

@@ -1,3 +1,4 @@
+import dataclasses
 import time as clock
 from datetime import datetime, timedelta, timezone
 
@@ -5,12 +6,11 @@ from fastapi.testclient import TestClient
 
 from app.services.data_loader import DataStore
 from app.schemas import IssueType
-from app.services.priority import HORIZON_HOURS, build_action_list, score_issue, upcoming_slots
-from app.services.queueing import unserved_sessions
+from app.services.priority import HORIZON_HOURS, build_action_list, earlier_arrivals, score_issue, upcoming_slots
+from app.services.queueing import served_by_occupancy
 
 MYT = timezone(timedelta(hours=8))
 NORMAL_TUESDAY = datetime(2026, 3, 17, 14, 0, tzinfo=MYT)
-AFTER_THE_PEAK = datetime(2026, 4, 1, 14, 0, tzinfo=MYT)  # chargers are still broken, demand is back to normal
 RM_PER_SESSION, CHARGE_MIN = 35.0, 38  # the dummy data's assumptions
 DAY_BEFORE_RAYA = datetime(2026, 3, 26, 14, 0, tzinfo=MYT)
 RAYA_PARAM = "2026-03-26T14:00:00+08:00"
@@ -25,28 +25,29 @@ def test_safety_fault_is_first_then_rm_descending(data: DataStore) -> None:
 
 def test_order_is_safety_then_money_at_risk_then_underused(data: DataStore) -> None:
     actions = build_action_list(data, DAY_BEFORE_RAYA)
-    assert [a["issue_type"] for a in actions] == [
-        "safety_fault",
-        "chronic_undercapacity", "user_reported", "degraded", "connector_fault",
-        "congestion", "congestion", "congestion",
-        "underused",
-    ]
+    types = [a["issue_type"] for a in actions]
+    assert types[0] == "safety_fault" and types[-1] == "underused"
+    # The three stations with a long queue at the festive peak can still serve every car once their
+    # chargers work, so they are not listed as congestion: only issues with sessions at risk are.
+    assert sorted(types[1:-1]) == ["chronic_undercapacity", "connector_fault", "degraded", "user_reported"]
     # After the safety fault, chargers and stations are one list: most money at risk first.
-    money = [a["rm_at_risk"] for a in actions[1:8]]
+    money = [a["rm_at_risk"] for a in actions[1:-1]]
     assert money == sorted(money, reverse=True)
-    assert money[0] > money[3] > 0
-    # The safety fault is first although three items have more money at risk.
-    assert actions[0]["rm_at_risk"] < actions[3]["rm_at_risk"]
+    assert money[-1] > 0
+    # The safety fault is first although other items have more money at risk.
+    assert actions[0]["rm_at_risk"] < money[0]
     assert actions[-1]["rm_at_risk"] == 0.0
 
 
 def _unserved(data: DataStore, station_id: str, chargers: int) -> float:
     """Estimated unserved sessions over the next 72 hours, worked out here from the forecast."""
     slots = upcoming_slots(data, station_id, DAY_BEFORE_RAYA, HORIZON_HOURS)
-    return sum(unserved_sessions(arrivals, CHARGE_MIN, chargers) for arrivals in slots["arrivals"])
+    earlier = earlier_arrivals(data, station_id, slots["slot_start"].iloc[0])
+    served = served_by_occupancy(list(slots["arrivals"]), CHARGE_MIN, chargers, earlier)
+    return slots["arrivals"].sum() - sum(served)
 
 
-def test_rm_at_risk_follows_the_capacity_formula(data: DataStore) -> None:
+def test_rm_at_risk_follows_the_occupancy_rule(data: DataStore) -> None:
     actions = {a["id"]: a for a in build_action_list(data, DAY_BEFORE_RAYA)}
 
     # Sensor fault (p_fault 0.86, 3 of 4 working): what one more working charger would serve.
@@ -66,22 +67,28 @@ def test_rm_at_risk_follows_the_capacity_formula(data: DataStore) -> None:
 
 
 def test_broken_charger_has_no_money_at_risk_when_the_others_can_serve_everyone(data: DataStore) -> None:
-    # After the peak the same charger is still broken, but three chargers cover the forecast demand.
-    assert _unserved_after_peak(data, "stn_003", 3) == 0.0
-    degraded = next(a for a in build_action_list(data, AFTER_THE_PEAK) if a["id"] == "degraded:stn_003:stn_003_c1")
-    assert degraded["rm_at_risk"] == 0.0
-    assert degraded["deadline"] is None
-    assert "sessions are at risk" not in degraded["reason"]
+    # Break one of the six chargers at Dengkil, a quiet station: the other five still serve every car.
+    health = data.health.copy()
+    health.loc[health["charger_id"] == "stn_001_c1", ["status", "p_fault"]] = ["degraded", 0.9]
+    quiet = dataclasses.replace(data, health=health)
+    assert _unserved(quiet, "stn_001", 5) == 0.0
 
-    # Before the peak, demand is above what three chargers can serve.
-    assert _unserved(data, "stn_003", 3) > 0
+    broken = next(a for a in build_action_list(quiet, DAY_BEFORE_RAYA) if a["id"] == "degraded:stn_001:stn_001_c1")
+    assert broken["rm_at_risk"] == 0.0
+    assert broken["deadline"] is None
+    assert "sessions are at risk" not in broken["reason"]
+
+    # At Seremban demand is above what three chargers can serve, so the same kind of fault costs money.
+    assert _unserved(data, "stn_003", 3) > _unserved(data, "stn_003", 4)
     degraded = next(a for a in build_action_list(data, DAY_BEFORE_RAYA) if a["id"] == "degraded:stn_003:stn_003_c1")
     assert degraded["rm_at_risk"] > 0
 
 
-def _unserved_after_peak(data: DataStore, station_id: str, chargers: int) -> float:
-    slots = upcoming_slots(data, station_id, AFTER_THE_PEAK, HORIZON_HOURS)
-    return sum(unserved_sessions(arrivals, CHARGE_MIN, chargers) for arrivals in slots["arrivals"])
+def test_a_station_queue_with_every_car_served_is_not_listed(data: DataStore) -> None:
+    # Every station issue on the list has sessions at risk, except "underused", which never has.
+    for action in build_action_list(data, DAY_BEFORE_RAYA):
+        if action["issue_type"] in ("congestion", "chronic_undercapacity"):
+            assert action["rm_at_risk"] > 0
 
 
 def test_site_issue_no_longer_exists() -> None:
@@ -206,6 +213,12 @@ def test_overview_without_session_files_is_empty_not_invented(real_client: TestC
     # Uptime is real: 20 chargers over 7 days is 140 charger-days, 9 of them with a fault.
     assert body["network_uptime_pct"] == 93.6
     assert real_client.get("/api/overview").status_code == 400  # `time` is required
+
+
+def test_charger_events_endpoint_without_a_log_file_is_empty(real_client: TestClient) -> None:
+    # The dummy data has no charger log: a known charger gives an empty list, an unknown one a 404.
+    assert real_client.get("/api/chargers/stn_003_c1/events", params={"time": RAYA_PARAM}).json() == []
+    assert real_client.get("/api/chargers/stn_999_c1/events", params={"time": RAYA_PARAM}).status_code == 404
 
 
 def test_unknown_ids_are_not_found(real_client: TestClient) -> None:

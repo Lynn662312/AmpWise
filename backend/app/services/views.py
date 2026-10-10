@@ -71,6 +71,17 @@ def station_chargers(data: DataStore, station_id: str, time: datetime) -> list[d
     ]
 
 
+def charger_events(data: DataStore, charger_id: str, time: datetime, days: int) -> list[dict[str, Any]]:
+    """The charger's log up to the simulated time, newest first: the proof behind its actions."""
+    if charger_id not in data.health_by_charger:
+        raise not_found(f"Charger {charger_id} does not exist")
+    events = data.events_by_charger.get(charger_id)
+    if events is None:
+        return []
+    recent = events[(events["time"] <= time) & (events["time"] > time - timedelta(days=days))]
+    return recent.sort_values("time", ascending=False)[["time", "source", "message"]].to_dict("records")
+
+
 def build_overview(data: DataStore, time: datetime) -> dict[str, Any]:
     """Network totals up to the simulated time, never beyond it: energy, live sessions, uptime."""
     week = [time.date() - timedelta(days=d) for d in range(6, -1, -1)]  # oldest first; the last one is today

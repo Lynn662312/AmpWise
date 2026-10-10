@@ -69,6 +69,17 @@ FAULT_STATUS = {
 }
 HEALTHY_EVIDENCE = "No fault reported by the charger"
 
+# The measurement that belongs to a fault type, shown in the charger's log as proof:
+# sensor column, what to call it, unit, and whether a high or a low value is the bad one.
+FAULT_READINGS = {
+    "HighTemperature": ("temperature_c", "Cable temperature", "°C", "max"),
+    "OverVoltage": ("voltage_v", "Voltage", "V", "max"),
+    "OverCurrentFailure": ("current_a", "Current", "A", "max"),
+    "WeakSignal": ("rssi_dbm", "Signal strength", "dBm", "min"),
+}
+READING_WINDOW = pd.Timedelta(hours=24)  # how far before a fault to look for that reading
+SENSOR_READINGS = [column for column, *_ in FAULT_READINGS.values()]
+
 # The complaint categories that count as a driver report on the charger and can reach the action list.
 # Only rows the ML cleaning step marked keep (negative comment, not spam) are counted.
 # Left out: Payment issue, Blocked by non-EV and Cleanliness. They are not about the charger itself,
@@ -147,6 +158,50 @@ def _fault_days(events: pd.DataFrame) -> pd.DataFrame:
     # Two faults on the same day: keep the worst one.
     faults = faults.sort_values("status", key=lambda s: s.map(WORST_FIRST.index), kind="stable")
     return faults.drop_duplicates(["ml_id", "date"])
+
+
+def _reading_before(log: pd.DataFrame, fault) -> tuple | None:
+    """The most extreme matching reading in the day before a fault, next to the charger's usual value."""
+    if fault.error_code not in FAULT_READINGS:
+        return None
+    column, name, unit, bad = FAULT_READINGS[fault.error_code]
+    readings = log[log[column].notna() & (log["timestamp"] < fault.timestamp)]
+    recent = readings[readings["timestamp"] >= fault.timestamp - READING_WINDOW]
+    if recent.empty:
+        return None
+    worst = recent.loc[recent[column].idxmax() if bad == "max" else recent[column].idxmin()]
+    usual = readings[readings["timestamp"] < fault.timestamp - READING_WINDOW][column].median()
+    usual_text = f" (usual {usual:.1f} {unit})" if pd.notna(usual) else ""
+    verb = "reached" if bad == "max" else "fell to"
+    return (fault.station_id, worst["timestamp"], "sensor", f"{name} {verb} {worst[column]:.1f} {unit}{usual_text}")
+
+
+def _charger_events(
+    events: pd.DataFrame, feedback: pd.DataFrame, charger_ids: dict[str, str], days: list[date]
+) -> pd.DataFrame:
+    """charger_events.parquet: each charger's log: its fault messages, the reading behind them, driver reports."""
+    rows = []
+    for ml_id, log in events[events["station_id"].isin(charger_ids)].groupby("station_id"):
+        status = log[log["action"] == "StatusNotification"].sort_values("timestamp")
+        after = status[["timestamp", "status"]].shift(-1)  # the charger's next status message
+        for fault, back_time, back_status in zip(status.itertuples(), after["timestamp"], after["status"]):
+            if fault.status != "Faulted":
+                continue
+            rows.append((ml_id, fault.timestamp, "sensor", f"Charger reported {fault.error_code}"))
+            if pd.notna(back_time):
+                rows.append((ml_id, back_time, "sensor", f"Charger back to {back_status} after {fault.error_code}"))
+            reading = _reading_before(log, fault)
+            if reading:
+                rows.append(reading)
+
+    reports = feedback[feedback["keep"] & feedback["category"].isin(CHARGER_REPORT_CATEGORIES)]
+    for report, when in zip(reports.itertuples(), _local_time(reports["timestamp"])):
+        rows.append((report.station_id, when, "driver", f"Driver report ({report.category}): {report.free_text}"))
+
+    log = pd.DataFrame(rows, columns=["ml_id", "time", "source", "message"])
+    log["charger_id"] = log["ml_id"].map(charger_ids)
+    in_range = log["time"].dt.date.between(days[0] - timedelta(days=7), days[-1])
+    return log[log["charger_id"].notna() & in_range].sort_values("time")[["charger_id", "time", "source", "message"]]
 
 
 def _health(events: pd.DataFrame, chargers: pd.DataFrame, charger_ids: dict[str, str], days: list[date]) -> pd.DataFrame:
@@ -308,7 +363,8 @@ def convert(raw_dir: str, out_dir: str) -> None:
     sessions = pd.read_csv(synth / "acn_sessions.csv", usecols=["site_path", "connectionTime", "disconnectTime"])
     # Only the sensor columns: ML's label columns (fault_id, fault_type, phase) are the answers, so they are not read.
     events = pd.read_csv(
-        synth / "ocpp_events.csv", usecols=["timestamp", "station_id", "action", "status", "error_code", "power_w"]
+        synth / "ocpp_events.csv",
+        usecols=["timestamp", "station_id", "action", "status", "error_code", "power_w", *SENSOR_READINGS],
     )
     events["timestamp"] = _local_time(events["timestamp"])
 
@@ -338,6 +394,7 @@ def convert(raw_dir: str, out_dir: str) -> None:
     labels.to_parquet(out / "fault_labels.parquet", index=False)
     reports.to_parquet(out / "user_reports.parquet", index=False)
     _energy(load, station_ids, days).to_parquet(out / "energy.parquet", index=False)
+    _charger_events(events, feedback, charger_ids, days).to_parquet(out / "charger_events.parquet", index=False)
     _sessions(sessions, station_ids, days).to_parquet(out / "sessions.parquet", index=False)
     (out / "params.json").write_text(json.dumps(params, indent=2), encoding="utf-8")
     (out / "report_categories.json").write_text(json.dumps(_report_categories(feedback), indent=2), encoding="utf-8")

@@ -17,4 +17,6 @@ class WhatIfResult(BaseModel):
     after_wait_min: float
     before_revenue_rm: float
     after_revenue_rm: float
+    before_at_risk_rm: float
+    after_at_risk_rm: float
     summary: str

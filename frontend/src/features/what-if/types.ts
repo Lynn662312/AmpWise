@@ -15,6 +15,9 @@ export type WhatIfResult = {
   after_wait_min: number
   before_revenue_rm: number
   after_revenue_rm: number
+  // Money at risk (estimated unserved sessions x price). Sent by the API; the local sample data has none.
+  before_at_risk_rm?: number
+  after_at_risk_rm?: number
   summary: string
 }
 
