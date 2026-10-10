@@ -19,9 +19,13 @@ class DemoTime(BaseModel):
     time: datetime
 
 
+class BacktestWeek(BaseModel):
+    value: str
+    label: str
+
+
 class Assumptions(BaseModel):
     rm_per_session: float
-    max_tolerable_wait_min: float
     avg_charge_min: float
 
 
@@ -31,6 +35,7 @@ class Meta(BaseModel):
     time_range: TimeRange
     festive_periods: list[FestivePeriod]
     demo_times: list[DemoTime]
+    backtest_weeks: list[BacktestWeek]
     assumptions: Assumptions
 
 

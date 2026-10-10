@@ -20,7 +20,8 @@ META: dict[str, Any] = {
         {"label": "Normal Tuesday", "time": "2026-03-17T14:00:00+08:00"},
         {"label": "Day before Raya exodus", "time": "2026-03-26T14:00:00+08:00"},
     ],
-    "assumptions": {"rm_per_session": 35.0, "max_tolerable_wait_min": 45, "avg_charge_min": 38},
+    "backtest_weeks": [{"value": "2026-03-23", "label": "Week of 23 Mar 2026"}],
+    "assumptions": {"rm_per_session": 35.0, "avg_charge_min": 38},
 }
 
 STATIONS: list[dict[str, Any]] = [
@@ -138,6 +139,22 @@ def stations() -> list[dict[str, Any]]:
 def _require_station(station_id: str) -> None:
     if not any(s["id"] == station_id for s in STATIONS):
         raise not_found(f"Station {station_id} does not exist")
+
+
+def station_chargers(station_id: str) -> list[dict[str, Any]]:
+    """Mock only: the first chargers are the broken ones. Real ids come from the sensor data."""
+    _require_station(station_id)
+    station = next(s for s in STATIONS if s["id"] == station_id)
+    n_broken = station["n_chargers"] - station["n_working"]
+    return [
+        {
+            "charger_id": f"{station_id}_c{n}",
+            "station_id": station_id,
+            "power_kw": station["power_kw"],
+            "status": "degraded" if n <= n_broken else "healthy",
+        }
+        for n in range(1, station["n_chargers"] + 1)
+    ]
 
 
 def forecast(station_id: str, start: datetime, hours: int) -> list[dict[str, Any]]:

@@ -12,8 +12,9 @@ FORECAST_COLUMNS = ["station_id", "slot_start", "arrivals", "arrivals_baseline",
 HEALTH_COLUMNS = ["charger_id", "station_id", "date", "power_ratio", "baseline", "status", "p_fault", "evidence"]
 FAULT_LABEL_COLUMNS = ["charger_id", "fault_type", "start_date"]
 USER_REPORT_COLUMNS = ["charger_id", "reported_at"]
-REPORT_ISSUE_TYPES = ["user_reported", "site_issue"]  # optional issue_type column; the first is the default
-PARAM_KEYS = ["avg_charge_min", "rm_per_session", "max_tolerable_wait_min"]
+ENERGY_COLUMNS = ["station_id", "slot_start", "energy_kwh"]
+SESSION_COLUMNS = ["station_id", "started_at", "ended_at"]
+PARAM_KEYS = ["avg_charge_min", "rm_per_session"]
 META_KEYS = ["corridor_name", "currency", "festive_periods", "demo_times"]
 
 
@@ -24,16 +25,16 @@ class DataStore:
     forecasts: pd.DataFrame
     health: pd.DataFrame
     fault_labels: pd.DataFrame
-    user_reports: pd.DataFrame  # reports about the charger itself
-    site_reports: pd.DataFrame  # reports about the bay (blocked, dirty): a technician cannot fix these
+    user_reports: pd.DataFrame
     report_categories: list[dict[str, Any]]  # share of driver complaints per category, for the pie chart
+    energy: pd.DataFrame  # energy delivered per 30-minute slot, for the overview
+    sessions: pd.DataFrame  # when each charging session started and ended, for the overview
     params: dict[str, float]
 
     def __post_init__(self) -> None:
         # Per-charger lookups, so a request does not scan the whole table once per charger.
         self.health_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.health.groupby("charger_id")))
         self.reports_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.user_reports.groupby("charger_id")))
-        self.site_reports_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.site_reports.groupby("charger_id")))
         self.chargers_by_station: dict[str, list[str]] = (
             self.health.groupby("station_id")["charger_id"].unique().apply(list).to_dict()
         )
@@ -85,21 +86,33 @@ def load_params(data_dir: str) -> dict[str, float]:
 def load_user_reports(data_dir: str) -> pd.DataFrame:
     """Driver fault reports. The file is optional: without it there are simply no reports."""
     if not (Path(data_dir) / "user_reports.parquet").exists():
-        return pd.DataFrame({
-            "charger_id": pd.Series(dtype=str),
-            "reported_at": pd.Series(dtype="datetime64[ns, UTC]"),
-            "issue_type": pd.Series(dtype=str),
-        })
+        return pd.DataFrame({"charger_id": pd.Series(dtype=str), "reported_at": pd.Series(dtype="datetime64[ns, UTC]")})
     df = _read(data_dir, "user_reports.parquet", USER_REPORT_COLUMNS)
     df["reported_at"] = pd.to_datetime(df["reported_at"])
     if df["reported_at"].dt.tz is None:
         raise ValueError("user_reports.parquet reported_at must include a UTC offset")
-    if "issue_type" not in df.columns:
-        df["issue_type"] = REPORT_ISSUE_TYPES[0]
-    unknown = set(df["issue_type"]) - set(REPORT_ISSUE_TYPES)
-    if unknown:
-        raise ValueError(f"user_reports.parquet has unknown issue_type values {sorted(unknown)}")
     return df.sort_values("reported_at").reset_index(drop=True)
+
+
+def _load_optional(data_dir: str, filename: str, columns: list[str], time_columns: list[str]) -> pd.DataFrame:
+    """A file with timestamps that may be missing: without it the table is simply empty."""
+    if not (Path(data_dir) / filename).exists():
+        empty_times = {c: pd.Series(dtype="datetime64[ns, UTC]") for c in time_columns}
+        return pd.DataFrame({c: empty_times.get(c, pd.Series(dtype=object)) for c in columns})
+    df = _read(data_dir, filename, columns)
+    for column in time_columns:
+        df[column] = pd.to_datetime(df[column])
+        if df[column].dt.tz is None:
+            raise ValueError(f"{filename} {column} must include a UTC offset")
+    return df
+
+
+def load_energy(data_dir: str) -> pd.DataFrame:
+    return _load_optional(data_dir, "energy.parquet", ENERGY_COLUMNS, ["slot_start"])
+
+
+def load_sessions(data_dir: str) -> pd.DataFrame:
+    return _load_optional(data_dir, "sessions.parquet", SESSION_COLUMNS, ["started_at", "ended_at"])
 
 
 def load_report_categories(data_dir: str) -> list[dict[str, Any]]:
@@ -117,16 +130,15 @@ def load_meta(data_dir: str) -> dict[str, Any]:
 
 
 def load_all(data_dir: str) -> DataStore:
-    reports = load_user_reports(data_dir)
-    about_site = reports["issue_type"] == "site_issue"
     return DataStore(
         meta=load_meta(data_dir),
         stations=load_stations(data_dir),
         forecasts=load_forecasts(data_dir),
         health=load_health(data_dir),
         fault_labels=load_fault_labels(data_dir),
-        user_reports=reports[~about_site],
-        site_reports=reports[about_site],
+        user_reports=load_user_reports(data_dir),
         report_categories=load_report_categories(data_dir),
+        energy=load_energy(data_dir),
+        sessions=load_sessions(data_dir),
         params=load_params(data_dir),
     )

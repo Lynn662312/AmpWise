@@ -19,6 +19,14 @@ def _queue(wait_min: float) -> str:
     return f"a {wait_min:.0f}-minute queue"
 
 
+def _at_risk(issue: dict[str, Any], lead: str = "An") -> str:
+    """The sessions the station is forecast to be unable to serve: an estimate, not customers seen leaving."""
+    sessions = issue["sessions_at_risk"]
+    if sessions < 0.1:
+        return ""
+    return f" {lead} estimated {sessions:.1f} sessions are at risk over the next 3 days."
+
+
 def make_reason(issue: dict[str, Any]) -> str:
     station = issue["station_name"]
     issue_type = issue["issue_type"]
@@ -29,9 +37,12 @@ def make_reason(issue: dict[str, Any]) -> str:
 
     if issue["charger_id"] is None:
         if issue_type == "congestion":
-            return f"{station} is short of chargers for the coming peak: even with every charger working, {peak}."
+            return (
+                f"{station} is short of chargers for the coming peak: even with every charger working, {peak}."
+                f"{_at_risk(issue)}"
+            )
         if issue_type == "chronic_undercapacity":
-            return f"{station} queues above 40 minutes on normal demand, so it needs more chargers."
+            return f"{station} queues above 40 minutes on normal demand, so it needs more chargers.{_at_risk(issue)}"
         return f"{station} is under 10% busy over the next 24 hours."
 
     charger = f"Charger {issue['charger_id'].rsplit('_c', 1)[-1]} at {station}"
@@ -40,18 +51,13 @@ def make_reason(issue: dict[str, Any]) -> str:
     if issue_type == "user_reported":
         return (
             f"Inspect {charger}{by}. {reports} drivers have reported it since {_when(issue['first_report'])}, "
-            f"but its sensors show no fault."
-        )
-    if issue_type == "site_issue":
-        return (
-            f"{charger} needs a person on site. {reports} drivers have reported a blocked or dirty bay "
-            f"since {_when(issue['first_report'])}, which a technician cannot fix."
+            f"but its sensors show no fault.{_at_risk(issue, lead='If it is really down, an')}"
         )
 
     # Faults the sensors detected; driver reports are added as supporting evidence.
     backed = f" Drivers have also reported it ({reports} report{'s' if reports > 1 else ''})." if reports else ""
     if issue_type == "safety_fault":
-        return f"Take {charger} offline now. {issue['evidence'][0]}.{backed}"
+        return f"Take {charger} offline now. {issue['evidence'][0]}.{_at_risk(issue)}{backed}"
     if issue_type == "connector_fault":
-        return f"Repair the connector on {charger}{by}. {issue['evidence'][0]}, and {peak}.{backed}"
-    return f"Fix {charger}{by}. {issue['evidence'][0]}, and {peak}.{backed}"
+        return f"Repair the connector on {charger}{by}. {issue['evidence'][0]}, and {peak}.{_at_risk(issue)}{backed}"
+    return f"Fix {charger}{by}. {issue['evidence'][0]}, and {peak}.{_at_risk(issue)}{backed}"

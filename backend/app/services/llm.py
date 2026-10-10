@@ -30,7 +30,9 @@ SYSTEM_PROMPT = """You write short operational advice for the operator of an EV 
 You receive a JSON object of facts about one item on the operator's priority list. The ranking, \
 money values, fault status and wait times were calculated by the operator's own models and are \
 displayed next to your text, so your text has to agree with them. Use only numbers that appear in \
-the facts, written the way they appear there, and do not estimate or calculate new ones.
+the facts, written the way they appear there, and do not estimate or calculate new ones. Money at \
+risk comes from estimated unserved sessions (forecast demand above charger capacity): call them \
+sessions at risk or estimated revenue at risk, and never say that customers left.
 
 Reply with a JSON object that has exactly these keys:
 - "summary" (string): one or two sentences on why this action matters now.
@@ -58,7 +60,6 @@ FALLBACK_STEPS: dict[str, list[str]] = {
     "congestion": ["Redirect drivers to nearby stations during the peak", "Post expected waiting times in the app"],
     "chronic_undercapacity": ["Plan additional chargers for this station", "Redirect drivers until capacity is added"],
     "underused": ["Review pricing at this station", "Consider moving a charger to a busier station"],
-    "site_issue": ["Send site staff to check the bay", "Clear or clean the bay, then mark the action done"],
 }
 
 # (action_id, time, language) -> advice from the AI
@@ -83,7 +84,7 @@ def build_facts(data: DataStore, action: dict[str, Any], time: datetime) -> dict
         "forecast_next_72h": {
             "peak_wait_min": look["peak_wait_min"],
             "peak_time": look["peak_time"].isoformat() if look["peak_time"] else None,
-            "lost_sessions": round(look["lost"], 1),
+            "estimated_unserved_sessions": round(look["unserved"], 1),
         },
         "assumptions": {**data.params, "currency": data.meta["currency"]},
     }
@@ -171,7 +172,7 @@ def fallback_advice(facts: dict[str, Any]) -> dict[str, Any]:
         "steps": FALLBACK_STEPS[action["issue_type"]],
         "caveats": [
             f"Revenue per session is an assumed {assumed['currency']} {assumed['rm_per_session']:.0f}",
-            f"Drivers are assumed to leave after waiting {assumed['max_tolerable_wait_min']:.0f} minutes",
+            "Sessions at risk are estimated from forecast demand above charger capacity, not observed customers",
         ],
     }
 

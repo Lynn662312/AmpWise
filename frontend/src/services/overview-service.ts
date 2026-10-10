@@ -2,9 +2,9 @@ import { getMockOverview } from "@/services/mockService"
 import { fetchJson, isApiMode } from "@/services/api-client"
 import type { ApiOverview } from "@/types/api"
 
-export async function fetchOverview(signal?: AbortSignal): Promise<ApiOverview> {
+export async function fetchOverview(time: string, signal?: AbortSignal): Promise<ApiOverview> {
   if (!isApiMode) return getMockOverview()
-  const overview = await fetchJson<ApiOverview>("/api/overview", { signal })
+  const overview = await fetchJson<ApiOverview>(`/api/overview?time=${encodeURIComponent(time)}`, { signal })
   if (overview.data_source !== "placeholder" && overview.data_source !== "api") {
     throw new Error("Overview API contract mismatch: unsupported data_source.")
   }

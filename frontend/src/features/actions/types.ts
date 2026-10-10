@@ -1,4 +1,4 @@
-export type IssueType = "safety_fault" | "degraded" | "connector_fault" | "user_reported" | "site_issue" | "congestion" | "chronic_undercapacity" | "underused"
+export type IssueType = "safety_fault" | "degraded" | "connector_fault" | "user_reported" | "congestion" | "chronic_undercapacity" | "underused"
 export type Urgency = "critical" | "high" | "medium" | "low"
 export type ActionStatus = "pending" | "assigned" | "completed"
 export type ActionState = "open" | "assigned" | "done"

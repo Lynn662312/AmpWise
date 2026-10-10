@@ -12,6 +12,7 @@ type TimeContextValue = {
   isReady: boolean
   timeError: string | null
   demoTimes: ApiMeta["demo_times"]
+  backtestWeeks: NonNullable<ApiMeta["backtest_weeks"]>
   setSelectedTime: (minutes: number) => void
   selectDemoTime: (time: string) => void
 }
@@ -83,7 +84,8 @@ export function TimeProvider({ children }: { children: ReactNode }) {
   const metadataError = meta && isApiMode ? validateCaliforniaMeta(meta) : null
   const timeError = metadataError ?? (metaQueryError instanceof Error ? metaQueryError.message : metaQueryError ? "Simulated-time metadata is unavailable." : null)
   const demoTimes = meta?.demo_times ?? []
-  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: selectedIsoTime ? formatTime(selectedTime) : "Loading…", isReady: Boolean(meta && selectedIsoTime && !timeError), timeError, demoTimes, setSelectedTime: updateSelectedTime, selectDemoTime }), [demoTimes, meta, selectDemoTime, selectedIsoTime, selectedTime, timeError, updateSelectedTime])
+  const backtestWeeks = useMemo(() => meta?.backtest_weeks ?? [], [meta])
+  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: selectedIsoTime ? formatTime(selectedTime) : "Loading…", isReady: Boolean(meta && selectedIsoTime && !timeError), timeError, demoTimes, backtestWeeks, setSelectedTime: updateSelectedTime, selectDemoTime }), [backtestWeeks, demoTimes, meta, selectDemoTime, selectedIsoTime, selectedTime, timeError, updateSelectedTime])
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>
 }
 

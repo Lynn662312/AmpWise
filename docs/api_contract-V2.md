@@ -5,7 +5,7 @@ It does not replace `docs/api_contract.md`, which remains authoritative.
 
 ## `GET /api/overview`
 
-Status: **BACKEND PLACEHOLDER — REPLACE WITH REAL IMPLEMENTATION**
+Status: **REPLACED (2026-10-11).** The endpoint now takes `time` and returns real totals from ML's session and energy files, with `data_source: "api"`. Its definition lives in `docs/api_contract.md` (v0.7, section 4). The fixed sample below is returned only in mock mode (`MOCK=1`). The rest of this section is kept as the history of the placeholder.
 
 The route returns deterministic demo values for Overview metrics that are not
 available from the current station, action or forecast services.

@@ -11,5 +11,7 @@ export async function fetchBacktest(week: string, signal?: AbortSignal): Promise
     return { result, source: "mock" }
   }
 
-  return { result: await fetchJson<BacktestResult>(`/api/backtest?week=${encodeURIComponent(week)}`, { signal }), source: "api" }
+  // Without a chosen week the backend replays its default week.
+  const query = week ? `?week=${encodeURIComponent(week)}` : ""
+  return { result: await fetchJson<BacktestResult>(`/api/backtest${query}`, { signal }), source: "api" }
 }
