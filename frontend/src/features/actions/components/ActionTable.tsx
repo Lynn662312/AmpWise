@@ -2,14 +2,14 @@ import { ArrowUpRight, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Action, ActionStatus } from "@/features/actions/types"
 import { issueConfig } from "@/features/actions/config/issueConfig"
-import { formatCurrency, formatDeadline, resolveStationLocation, resolveStationName } from "@/features/actions/utils/actionHelpers"
+import { formatCurrency, formatDeadline, resolveStationLocation, resolveStationName, toUiStatus } from "@/features/actions/utils/actionHelpers"
 import { IssueBadge } from "@/features/actions/components/IssueBadge"
 import { UrgencyBadge } from "@/features/actions/components/UrgencyBadge"
 import type { ChargingStation } from "@/features/map/types"
 import { cn } from "@/lib/utils"
 
 export function ActionTable({ actions, stations, statuses, onSelect }: { actions: readonly Action[]; stations: readonly ChargingStation[]; statuses: Record<string, ActionStatus>; onSelect: (action: Action) => void }) {
-  return <div className="hidden overflow-hidden rounded-[1.35rem] border border-border bg-card lg:block"><table className="w-full border-collapse text-left"><thead className="border-b border-border bg-muted/50"><tr className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground"><th className="px-5 py-4 font-semibold">Priority</th><th className="px-4 py-4 font-semibold">Station / charger</th><th className="px-4 py-4 font-semibold">Issue</th><th className="px-4 py-4 font-semibold">Amount at risk</th><th className="px-4 py-4 font-semibold">Deadline</th><th className="px-4 py-4 font-semibold">Recommended action</th><th className="px-4 py-4 font-semibold">Details</th></tr></thead><tbody className="divide-y divide-border">{actions.map((action) => <ActionRow key={action.id} action={action} stationName={action.station_name || resolveStationName(action.station_id, stations)} location={resolveStationLocation(action.station_id, stations)} status={statuses[action.id] ?? "pending"} onSelect={() => onSelect(action)} />)}</tbody></table></div>
+  return <div className="hidden overflow-hidden rounded-[1.35rem] border border-border bg-card lg:block"><table className="w-full border-collapse text-left"><thead className="border-b border-border bg-muted/50"><tr className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground"><th className="px-5 py-4 font-semibold">Priority</th><th className="px-4 py-4 font-semibold">Station / charger</th><th className="px-4 py-4 font-semibold">Issue</th><th className="px-4 py-4 font-semibold">Amount at risk</th><th className="px-4 py-4 font-semibold">Deadline</th><th className="px-4 py-4 font-semibold">Recommended action</th><th className="px-4 py-4 font-semibold">Details</th></tr></thead><tbody className="divide-y divide-border">{actions.map((action) => <ActionRow key={action.id} action={action} stationName={action.station_name || resolveStationName(action.station_id, stations)} location={resolveStationLocation(action.station_id, stations)} status={statuses[action.id] ?? toUiStatus(action.state)} onSelect={() => onSelect(action)} />)}</tbody></table></div>
 }
 
 function ActionRow({ action, stationName, location, status, onSelect }: { action: Action; stationName: string; location: string; status: ActionStatus; onSelect: () => void }) {
