@@ -9,7 +9,7 @@ Version: v0.4 · 2026-10-10
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
 > - **Money:** USD. Field names keep the `rm_` prefix for now (`rm_at_risk`, `rm_per_session`, …); read the currency from `meta.currency`.
-> - **Festive:** US public holidays only (ML's `is_holiday`). Days near a holiday (`near_holiday`) do not count.
+> - **Festive:** no longer a focus. `is_festive` and `meta.festive_periods` still exist and only label US public holidays (ML's `is_holiday`); no demand multiplier is applied. The demo is about the weekday morning rush.
 > - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). The field names and shapes are still correct.
 
 ---
@@ -335,7 +335,16 @@ Backend reads these at startup. Path set by `DATA_DIR` in backend `.env`.
 Dummy versions with the right columns are due by hour 3.
 
 v0.3: `forecasts.parquet` may also carry `arrivals_actual` (what really happened), used by the backtest.
-ML 1 currently exports `model1_test_predictions.csv` and `model1_metrics.json` from Colab; the backend turns them into the files above with `python -m scripts.convert_ml_outputs` (see `docs/backend_plan.md`, Stage 7).
+v0.4: `stations.parquet` may also carry `avg_charge_min` (that station's own average charge time); when present it replaces the shared value in `params.json`.
+
+**What ML actually delivers** (in `ml/output/` on `main`). ML's own names are kept as they are; the backend renames them with `python -m scripts.convert_ml_outputs` (see `docs/backend_plan.md`, Stage 7).
+
+| ML file | ML columns | Becomes |
+| --- | --- | --- |
+| `model1_test_predictions.csv` | station, slot_utc, slot_local, arrivals, pred, baseline_last_week, is_holiday, near_holiday, wait_min_all_up, wait_min_one_down | `forecasts.parquet`: station → station_id, slot_utc → slot_start (California time), pred → arrivals, baseline_last_week → arrivals_baseline, is_holiday → is_festive, arrivals → arrivals_actual. `near_holiday` and the two wait columns are not used. |
+| `station_profile.csv` | station, sampled, mean_charge_min, median_charge_min, mean_kwh, rated_kw, energy_source, n_chargers, sessions_total | `stations.parquet`: n_chargers, rated_kw → power_kw, mean_charge_min → avg_charge_min. Names and coordinates are placeholders set in the converter. |
+| `model1_metrics.json` | festive_multiplier_assumed, test_metrics, … | Not used by the backend (holidays are no longer a focus). |
+| Sensor results, fault dates, driver reports | not delivered yet | Placeholders written by the converter. |
 
 ---
 

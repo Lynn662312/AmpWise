@@ -144,7 +144,7 @@ How to test: `pytest -v` shows 56 passed. With `MOCK=0`, fixing `stn_003_c1` at 
 
 How the backtest works (assumptions to confirm with the team):
 
-- It replays 7 days, starting 4 days before the first festive period in the data. The `week` parameter is accepted but not used yet.
+- It replays 7 days, starting the day before the first real fault in the data. The `week` parameter is accepted but not used yet.
 - One technician repairs one charger per day; the charger works again the next day.
 - Baseline: a fault is known when the first driver reports it, and faults are fixed first come, first served.
 - Ours: a fault is known the day the sensors flag it, or on its second driver report, and faults are fixed in action-list order.
@@ -168,15 +168,31 @@ The data is US (ACN dataset, California): test window 2019-12-01 to 2020-02-29, 
 
 How to bring ML's files in:
 
-1. In Colab, download `model1_test_predictions.csv` and `model1_metrics.json` (Files panel on the left, right-click, Download).
-2. Put both in `ml/outputs/raw/` on your machine.
-3. From `backend`: `python -m scripts.convert_ml_outputs`, then `python -m scripts.check_data`.
-4. Restart the server with `MOCK=0`.
+1. ML pushes its files to `ml/output/` on `main` (`model1_test_predictions.csv`, `model1_metrics.json`, `station_profile.csv`). Merge `main` into your branch to get them.
+2. From `backend`: `python -m scripts.convert_ml_outputs`, then `python -m scripts.check_data`.
+3. Restart the server with `MOCK=0`.
 
-- [x] `scripts/convert_ml_outputs.py` — renames ML's columns, converts UTC to California time, applies the assumed festive multiplier, and writes all the files the backend reads (tested on a made-up file in ML's format, not yet on the real one)
+Two folders with similar names: `ml/output/` is ML's (in git); `ml/outputs/` is what the backend reads (`DATA_DIR`, git-ignored, written by the converter). To go back to the dummy data, run `python -m scripts.make_dummy_data`.
+
+Status: ML's forecast files are converted and the backend runs on them (4 stations, 30 Nov 2019 to 29 Feb 2020). Sensor results, fault dates and driver reports are still placeholders.
+
+Decided: holidays are no longer a focus. The converter uses ML's predictions as they are (no festive multiplier), the demo times are "Quiet Sunday" and "Weekday morning rush" (the busiest day in the data), and the backtest week starts the day before the first real fault.
+
+Where ML files go: everything from ML (forecast model, health model) goes in `ml/output/`, next to the existing files, and is committed. Notebooks go in `ml/notebooks/colab/`, saved models in `ml/model/`. Never put ML's files in `ml/outputs/`; that folder is generated.
+
+What the real data shows:
+
+- Holidays are quiet. These are workplace garages, so demand peaks on weekday mornings around 7am and drops on holidays.
+- Capacity differs a lot: two garages have 54 and 24 chargers and almost never queue; South Wilson has 4; JPL has 52 but 222-minute sessions, so the model shows it over capacity at the morning peak.
+- Money at risk is small with the placeholder USD 10 per session.
+- The backtest shows almost no difference yet, because the placeholder faults sit on large garages in a quiet week. It needs the real fault data from the second ML model.
+
+- [x] `scripts/convert_ml_outputs.py` — reads ML's files with ML's own column names, converts UTC to California time, applies the assumed festive multiplier, takes charger count, power and charge time per station from `station_profile.csv`, and writes all the files the backend reads
+- [x] Run on ML's real forecast files; `check_data` passes; actions 0.3 s, stations 0.4 s
+- [x] Each station uses its own average charge time (`avg_charge_min` in `stations.parquet`)
 - [x] Decided: only `is_holiday` counts as festive; `near_holiday` is ignored
 - [x] Decided: ML's wait columns are not used, so their average charge time is not needed; the backend uses its own `avg_charge_min`
-- [ ] Run it on ML's real files and tune the placeholders at the top of the script: station names, coordinates, charger counts, revenue per session, average charge time
+- [ ] Tune the placeholders at the top of the script: station display names, coordinates, revenue per session, tolerable wait, demo times
 - [ ] Replace the placeholder charger faults and driver reports when ML delivers the sensor data (`health.parquet`, `fault_labels.parquet`) and the report data (`user_reports.parquet`)
 - [ ] Put the files in `DATA_DIR`, replacing the dummy ones
 - [x] `scripts/check_data.py` — run `python -m scripts.check_data ../ml/outputs` on ML's files; it reports missing columns, unknown station ids, slots that are not 30 minutes, timestamps not in `+08:00`, unknown status values and charger counts that do not match

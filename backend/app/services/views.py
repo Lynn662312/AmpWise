@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.errors import not_found
-from app.services.classifier import latest_health, recent_reports, working_chargers
+from app.services.classifier import charge_min, latest_health, recent_reports, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import build_action_list, upcoming_slots
 from app.services.queueing import predict_wait
@@ -42,7 +42,7 @@ def station_list(data: DataStore, time: datetime) -> list[dict[str, Any]]:
         n_working = working_chargers(data, station.station_id, time)
         now = upcoming_slots(data, station.station_id, time, hours=1)
         arrivals = float(now["arrivals"].iloc[0]) if not now.empty else 0.0
-        wait = predict_wait(arrivals, data.params["avg_charge_min"], n_working)
+        wait = predict_wait(arrivals, charge_min(data, station.station_id), n_working)
         result.append({
             "id": station.station_id, "name": station.name, "lat": station.lat, "lon": station.lon,
             "n_chargers": station.n_chargers, "n_working": n_working, "power_kw": station.power_kw,
@@ -61,7 +61,7 @@ def station_forecast(data: DataStore, station_id: str, start: datetime, hours: i
             "slot_start": row.slot_start.to_pydatetime(),
             "arrivals": row.arrivals,
             "arrivals_baseline": row.arrivals_baseline,
-            "wait_min": predict_wait(row.arrivals, data.params["avg_charge_min"], n_working),
+            "wait_min": predict_wait(row.arrivals, charge_min(data, station_id), n_working),
             "is_festive": bool(row.is_festive),
         }
         for row in slots.itertuples()

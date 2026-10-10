@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from app.schemas import ChargerStatus, IssueType
-from app.services.classifier import classify_station, latest_health, recent_reports, working_chargers
+from app.services.classifier import charge_min, classify_station, latest_health, recent_reports, working_chargers
 from app.services.data_loader import DataStore
 from app.services.explain import make_reason
 from app.services.queueing import lost_sessions, predict_wait
@@ -44,8 +44,9 @@ def upcoming_slots(data: DataStore, station_id: str, time: datetime, hours: int)
 def outlook(data: DataStore, slots: pd.DataFrame, chargers: int) -> dict[str, Any]:
     """Lost sessions and the peak queue across the slots, with this many chargers working."""
     lost, first_loss, peak_wait, peak_time = 0.0, None, 0.0, None
+    avg_charge_min = charge_min(data, slots["station_id"].iloc[0]) if len(slots) else 0.0
     for slot_start, arrivals in zip(slots["slot_start"], slots["arrivals"]):
-        wait = predict_wait(arrivals, data.params["avg_charge_min"], chargers)
+        wait = predict_wait(arrivals, avg_charge_min, chargers)
         if peak_time is None or wait > peak_wait:
             peak_wait, peak_time = wait, slot_start.to_pydatetime()
         loss = lost_sessions(arrivals, wait, data.params["max_tolerable_wait_min"])
@@ -90,8 +91,7 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
     issues: list[dict[str, Any]] = []
 
     # Faulty chargers: value = sessions saved by getting this one charger back.
-    charger_ids = data.health.loc[data.health["station_id"] == station.station_id, "charger_id"].unique()
-    for charger_id in charger_ids:
+    for charger_id in data.chargers_by_station.get(station.station_id, []):
         health = latest_health(data, charger_id, time)
         reports = recent_reports(data, charger_id, time)
         sensor_fault = health is not None and health["status"] != ChargerStatus.healthy.value

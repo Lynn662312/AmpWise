@@ -26,6 +26,14 @@ class DataStore:
     user_reports: pd.DataFrame
     params: dict[str, float]
 
+    def __post_init__(self) -> None:
+        # Per-charger lookups, so a request does not scan the whole table once per charger.
+        self.health_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.health.groupby("charger_id")))
+        self.reports_by_charger: dict[str, pd.DataFrame] = dict(tuple(self.user_reports.groupby("charger_id")))
+        self.chargers_by_station: dict[str, list[str]] = (
+            self.health.groupby("station_id")["charger_id"].unique().apply(list).to_dict()
+        )
+
 
 def _read(data_dir: str, filename: str, columns: list[str]) -> pd.DataFrame:
     df = pd.read_parquet(Path(data_dir) / filename)

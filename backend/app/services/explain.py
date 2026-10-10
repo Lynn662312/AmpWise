@@ -22,7 +22,10 @@ def _queue(wait_min: float) -> str:
 def make_reason(issue: dict[str, Any]) -> str:
     station = issue["station_name"]
     issue_type = issue["issue_type"]
-    peak = f"the forecast peak is {_queue(issue['peak_wait_min'])} on {issue['peak_time']:%A}"
+    if issue["peak_wait_min"] >= 1:
+        peak = f"the forecast peak is {_queue(issue['peak_wait_min'])} on {issue['peak_time']:%A}"
+    else:
+        peak = "no queue is forecast for the next 3 days"
 
     if issue["charger_id"] is None:
         if issue_type == "congestion":

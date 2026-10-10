@@ -37,9 +37,9 @@ def test_whatif_endpoint(real_client: TestClient) -> None:
     assert real_client.post("/api/whatif", json={**body, "scenario": "discount"}).status_code == 400
 
 
-def test_backtest_week_starts_before_the_festive_period(data: DataStore) -> None:
+def test_backtest_week_starts_the_day_before_the_first_fault(data: DataStore) -> None:
     days = backtest.backtest_days(data)
-    assert days[0] == date(2026, 3, 23)
+    assert days[0] == date(2026, 3, 22)
     assert len(days) == 7
 
 
@@ -58,4 +58,4 @@ def test_ours_is_better_than_baseline(data: DataStore) -> None:
 def test_backtest_endpoint(real_client: TestClient) -> None:
     res = real_client.get("/api/backtest")
     assert res.status_code == 200
-    assert res.json()["week_label"] == "Hari Raya exodus week"
+    assert res.json()["week_label"] == "Week of 22 Mar 2026"
