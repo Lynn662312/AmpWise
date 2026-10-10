@@ -6,8 +6,8 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | --- | --- | --- |
 | 0 | Setup | Done |
 | 1 | Mock API for the frontend | Done |
-| 2 | Calculation core | Next |
-| 3 | Action list on parquet data | |
+| 2 | Calculation core | Done |
+| 3 | Action list on parquet data | Next |
 | 4 | AI advice | |
 | 5 | What-if and backtest | |
 | 6 | Frontend integration (on dummy data) | |
@@ -54,17 +54,26 @@ How to test: `pytest -v` shows 14 passed; each endpoint in `/docs` returns the e
 
 Known limits: `MOCK=0` returns a 500 until Stage 3. The backtest mock numbers are invented because the contract has no example.
 
-## Stage 2 — Calculation core — Next
+## Stage 2 — Calculation core — Done
 
 In plain words: the maths that turns "cars arriving" into "minutes of waiting", plus fake data files in the same format ML will deliver.
 
-- [ ] `app/services/queueing.py` — `erlang_c`, `predict_wait`, `lost_sessions`; handle zero working chargers and demand above capacity
-- [ ] `tests/test_queueing.py` — known inputs give known waits
-- [ ] `scripts/make_dummy_data.py` — writes `stations.parquet`, `forecasts.parquet`, `health.parquet`, `fault_labels.parquet`, `params.json` with the columns in contract section 5
-- [ ] `app/services/data_loader.py` — loads those files once at startup
-- [ ] `app/services/classifier.py` — `classify_station`, `classify_charger`
+- [x] `app/services/queueing.py` — `erlang_c`, `predict_wait`, `lost_sessions`; handle zero working chargers and demand above capacity
+- [x] `tests/test_queueing.py` — known inputs give known waits
+- [x] `scripts/make_dummy_data.py` — writes `stations.parquet`, `forecasts.parquet`, `health.parquet`, `fault_labels.parquet`, `params.json` with the columns in contract section 5
+- [x] `app/services/data_loader.py` — loads those files once at startup (only when `MOCK=0`)
+- [x] `app/services/classifier.py` — `classify_station`, `classify_charger`, `working_chargers`
+- [x] `tests/test_data_and_classifier.py`
 
-How to test: `pytest -v`; for example, more arrivals or fewer working chargers must give a longer wait.
+How to test: `pytest -v` shows 28 passed. `python -m scripts.make_dummy_data` writes the dummy files to `ml/outputs/` (git-ignored).
+
+Assumptions to confirm with the team:
+
+- When demand is at or above capacity the wait is reported as 120 minutes (the formula gives infinity).
+- Lost sessions = arrivals × (1 − tolerable wait ÷ actual wait) once the wait passes the limit.
+- A station is `congestion` if the next 24 hours peak above 40 minutes, `chronic_undercapacity` if that happens even on normal demand with every charger working, and `underused` if it is under 10% busy.
+- Any charger that is not `healthy` counts as not working.
+- `evidence` in `health.parquet` is a list of strings per row.
 
 ## Stage 3 — Action list on parquet data
 

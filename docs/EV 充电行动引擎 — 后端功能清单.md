@@ -182,10 +182,10 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 
 **阶段 2：计算核心（3–8h）/ Phase 2: core logic**
 
-- [ ] `queueing.py`：`erlang_c`、`predict_wait`、`lost_sessions`
-- [ ] 写单元测试：已知输入 → 已知等待时间 / unit tests in `tests/`: known inputs → known waits
-- [ ] `classifier.py`：`classify_station`、`classify_charger`
-- [ ] `data_loader.py`：先读 ML 的假 parquet / load ML's dummy parquet first
+- [x] `queueing.py`：`erlang_c`、`predict_wait`、`lost_sessions` — **已完成 Done**
+- [x] 写单元测试：已知输入 → 已知等待时间 / unit tests in `tests/`: known inputs → known waits — **已完成 Done**
+- [x] `classifier.py`：`classify_station`、`classify_charger` — **已完成 Done**
+- [x] `data_loader.py`：先读 ML 的假 parquet / load ML's dummy parquet first — **已完成 Done**（假数据由 `backend/scripts/make_dummy_data.py` 生成 / dummy files come from `backend/scripts/make_dummy_data.py`）
 
 **阶段 3：行动清单（8–14h）/ Phase 3: action list**
 
