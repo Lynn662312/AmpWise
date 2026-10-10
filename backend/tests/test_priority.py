@@ -208,6 +208,12 @@ def test_overview_without_session_files_is_empty_not_invented(real_client: TestC
     assert real_client.get("/api/overview").status_code == 400  # `time` is required
 
 
+def test_charger_events_endpoint_without_a_log_file_is_empty(real_client: TestClient) -> None:
+    # The dummy data has no charger log: a known charger gives an empty list, an unknown one a 404.
+    assert real_client.get("/api/chargers/stn_003_c1/events", params={"time": RAYA_PARAM}).json() == []
+    assert real_client.get("/api/chargers/stn_999_c1/events", params={"time": RAYA_PARAM}).status_code == 404
+
+
 def test_unknown_ids_are_not_found(real_client: TestClient) -> None:
     assert real_client.get("/api/chargers/stn_999_c1/health", params={"time": RAYA_PARAM}).status_code == 404
     assert real_client.get("/api/stations/stn_999/forecast", params={"start": RAYA_PARAM}).status_code == 404

@@ -105,6 +105,13 @@ def test_station_chargers(client: TestClient) -> None:
     assert client.get("/api/stations/stn_999/chargers", params={"time": TIME}).status_code == 404
 
 
+def test_charger_events(client: TestClient) -> None:
+    res = client.get("/api/chargers/stn_003_c1/events", params={"time": TIME})
+    assert res.status_code == 200
+    assert {event["source"] for event in res.json()} == {"sensor", "driver"}
+    assert res.json()[1]["message"] == "Charger reported PowerMeterFailure"
+
+
 def test_missing_time_is_bad_request(client: TestClient) -> None:
     res = client.get("/api/stations")
     assert res.status_code == 400

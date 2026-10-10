@@ -24,8 +24,8 @@ def _compare(
     more_served = round(after["served"] - before["served"], 1)
 
     changes = []
-    if after["peak_wait_min"] != before["peak_wait_min"]:
-        changes.append(f"cuts the peak wait from {before['peak_wait_min']:.0f} to {after['peak_wait_min']:.0f} minutes")
+    if after["avg_wait_min"] != before["avg_wait_min"]:
+        changes.append(f"cuts the average wait from {before['avg_wait_min']:.1f} to {after['avg_wait_min']:.1f} minutes")
     if more_served > 0:
         changes.append(
             f"serves an estimated {more_served:.1f} more sessions "
@@ -36,8 +36,9 @@ def _compare(
     else:
         summary = f"{what} does not change the queue or the sessions served over the next {HORIZON_HOURS} hours."
     return {
-        "before_wait_min": before["peak_wait_min"],
-        "after_wait_min": after["peak_wait_min"],
+        # The average wait per arriving car: the peak is usually at the cap both before and after.
+        "before_wait_min": before["avg_wait_min"],
+        "after_wait_min": after["avg_wait_min"],
         "before_revenue_rm": round(before_revenue, 2),
         "after_revenue_rm": round(after_revenue, 2),
         "summary": summary,

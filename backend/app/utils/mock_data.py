@@ -175,6 +175,18 @@ def charger_health(charger_id: str) -> dict[str, Any]:
     return {**CHARGER_HEALTH, "charger_id": charger_id, "station_id": station_id}
 
 
+CHARGER_EVENTS: list[dict[str, Any]] = [
+    {"time": "2026-03-25T15:00:00+08:00", "source": "driver",
+     "message": "Driver report (Slow charging): Charging is crawling, barely getting any power"},
+    {"time": "2026-03-23T09:10:00+08:00", "source": "sensor", "message": "Charger reported PowerMeterFailure"},
+]
+
+
+def charger_events(charger_id: str) -> list[dict[str, Any]]:
+    _require_station(charger_id.rsplit("_", 1)[0])
+    return CHARGER_EVENTS
+
+
 def actions(limit: int) -> list[dict[str, Any]]:
     return ACTIONS[:limit]
 

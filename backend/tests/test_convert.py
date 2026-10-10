@@ -51,8 +51,16 @@ def _write_synth_files(synth_dir) -> None:
         columns=["id", "site_path", "lat", "lon", "kw"],
     ).to_csv(synth_dir / "stations.csv", index=False)
 
+    # Cable temperature on charger 2: a normal day, then a hot reading eight hours before its fault.
+    readings = pd.DataFrame(
+        [
+            ("2019-12-05T20:00:00+00:00", "SWG1-002", "MeterValues", 3300.0, 22.0),
+            ("2019-12-12T10:00:00+00:00", "SWG1-002", "MeterValues", 3300.0, 61.5),
+        ],
+        columns=["timestamp", "station_id", "action", "power_w", "temperature_c"],
+    )
     # The last three columns are ML's answers; the converter must work without reading them.
-    pd.DataFrame(
+    messages = pd.DataFrame(
         [
             ("2019-12-01T08:00:00+00:00", "SWG1-001", "StatusNotification", "Available", "NoError", None),
             ("2019-12-09T20:00:00+00:00", "SWG1-001", "MeterValues", None, None, 3300.0),
@@ -65,9 +73,10 @@ def _write_synth_files(synth_dir) -> None:
             ("2019-12-12T18:00:00+00:00", "NWG1-001", "StatusNotification", "Faulted", "GroundFailure", None),
         ],
         columns=["timestamp", "station_id", "action", "status", "error_code", "power_w"],
-    ).assign(fault_id="F0001", fault_type="HighTemperature", phase="fault").to_csv(
-        synth_dir / "ocpp_events.csv", index=False
     )
+    pd.concat([messages, readings]).assign(
+        voltage_v=None, current_a=None, rssi_dbm=None, fault_id="F0001", fault_type="HighTemperature", phase="fault"
+    ).to_csv(synth_dir / "ocpp_events.csv", index=False)
 
     pd.DataFrame(
         [
@@ -193,6 +202,21 @@ def test_convert_sensor_log_faults_and_feedback(data_dir: str) -> None:
     assert list(data.user_reports.columns) == ["charger_id", "reported_at"]
     assert data.user_reports["reported_at"].iloc[0].isoformat() == "2019-12-15T10:00:00-08:00"
 
+    # Charger log: its fault messages, the reading that goes with the fault, and when it came back.
+    log = data.events_by_charger["stn_001_c2"]
+    assert list(zip(log["time"].dt.strftime("%d %H:%M"), log["source"], log["message"])) == [
+        ("12 02:00", "sensor", "Cable temperature reached 61.5 °C (usual 22.0 °C)"),
+        ("12 08:00", "sensor", "Charger reported WeakSignal"),
+        ("12 09:00", "sensor", "Charger back to Available after WeakSignal"),
+        ("12 10:00", "sensor", "Charger reported HighTemperature"),
+        ("13 12:00", "sensor", "Charger back to Available after HighTemperature"),
+    ]
+    # Driver reports about a charger carry the driver's own category and words.
+    assert list(data.events_by_charger["stn_002_c1"]["message"]) == [
+        "Driver report (Won't start): text", "Driver report (Other): text",
+    ]
+    assert "stn_001_c1" not in data.events_by_charger  # bay and payment complaints are not charger events
+
     # Energy and sessions: ML's sites become our stations, times become California time,
     # and the site without a forecast and the rows long before the forecast days are gone.
     assert data.energy.to_dict("records") == [
@@ -249,6 +273,20 @@ def test_app_answers_on_converted_files(data_dir: str) -> None:
             ("stn_001_c1", "healthy"), ("stn_001_c2", "safety_fault"),
         ]
         assert chargers[0]["power_kw"] == 6.7
+
+        # The charger's log at 07:00 on 13 Dec, newest first. Its recovery at noon has not happened yet.
+        events = client.get("/api/chargers/stn_001_c2/events", params={"time": during}).json()
+        assert [e["message"] for e in events] == [
+            "Charger reported HighTemperature",
+            "Charger back to Available after WeakSignal",
+            "Charger reported WeakSignal",
+            "Cable temperature reached 61.5 °C (usual 22.0 °C)",
+        ]
+        assert events[0] == {
+            "time": "2019-12-12T10:00:00-08:00", "source": "sensor", "message": "Charger reported HighTemperature",
+        }
+        assert client.get("/api/chargers/stn_001_c1/events", params={"time": during}).json() == []
+        assert client.get("/api/chargers/stn_999_c1/events", params={"time": during}).status_code == 404
 
         # Overview at 07:00 on 13 Dec: only what has happened by then is counted.
         overview = client.get("/api/overview", params={"time": during}).json()

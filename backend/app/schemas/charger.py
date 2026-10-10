@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -9,6 +10,12 @@ class PowerRatioPoint(BaseModel):
     date: date
     ratio: float
     baseline: float
+
+
+class ChargerEvent(BaseModel):
+    time: datetime
+    source: Literal["sensor", "driver"]
+    message: str
 
 
 class ChargerHealth(BaseModel):

@@ -10,20 +10,32 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 3 | Action list on parquet data | Done |
 | 4 | AI advice | Built; optional, the app works without a key |
 | 5 | What-if and backtest | Done |
-| 6 | Frontend integration (on ML's real data) | Done; walkthrough by a person still to do |
+| 6 | Frontend integration (on ML's real data) | Done and live; walkthrough by a person still to do |
 | 7 | ML integration (Colab outputs) | Done |
-| 8 | Deploy, Firestore and optional extras | Backend on Render, frontend on Vercel, action status on Firestore; live site is one merge behind |
+| 8 | Deploy, Firestore and optional extras | Live: backend on Render, frontend on Vercel, action status on Firestore; extras open |
 
-## What is left (updated 2026-10-11, after the deployment check)
+## What is left (updated 2026-10-11, after the merge into `main`)
 
-Live now: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, and the website is allowed through CORS. They work, but they show the version from before contract v0.6 and v0.7: sample numbers on the overview, no charger lists, the old ranking, two demo times, the week of 10 Dec in the results.
+Live and current: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which now holds contract v0.6 and v0.7 (pull request #6) and the frontend's later dropdown fix (pull request #7).
 
-1. [ ] Merge the pull request from `final` into `main`. The work (contract v0.6 and v0.7, backend, frontend, `backend/data/`) is committed and pushed on `final`, with `main` already merged in. After the merge Render and Vercel redeploy by themselves and the live site shows the current version. On this work 86 backend tests and 1 ML test pass, and the frontend type-checks and builds.
-2. [ ] After the redeploy, walk every page once on the live site as a person (Stage 6).
-3. [ ] To switch on "assign / mark done" on the live site: check that `FIREBASE_CREDENTIALS` is set in the Render dashboard (it is a secret, so it is not in `render.yaml`), then set `VITE_ACTION_STATUS_ENABLED=true` in Vercel and redeploy the frontend (Stage 8).
-4. [ ] Optional: saved what-if runs and demo reset (Stage 8); AI advice with a real key (Stage 4).
+Checked after the merge: the live API answers with the v0.7 fields (four demo times, twelve backtest weeks, real overview totals, charger lists), and six live pages were rendered and their text checked: overview, map, station detail, what-if, results and actions. No problem was found. 86 backend tests and 1 ML test pass on the same code.
 
-Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger capacity; cleaned feedback reviewed; backtest numbers handed over; "same chargers" checked and not needed (Stage 7).
+Not yet committed (on the branch `final`, 2026-10-11): contract v0.8. It adds the charger log (`GET /api/chargers/{id}/events`, shown on the charger page with the reason and the sensor evidence), a "Why this station needs attention" card on the station page, and what-if waits that are the average wait, not the capped peak. 89 backend tests pass and the frontend type-checks and builds. `final` still merges into `main` without conflicts.
+
+What remains, in order:
+
+0. [ ] Fix `FIREBASE_CREDENTIALS` in the local `backend/.env`. The key is pasted over several lines, so the app reads only `{` and the local backend stops at start-up. Put the whole JSON on one line inside single quotes, or save it as a file and give its path. (Render is not affected.)
+1. [ ] Commit the v0.8 work and merge it into `main`. Then, before more new work: `git checkout main`, `git pull`, and a new branch.
+2. [ ] Walk every page once on the live site as a person: click through, run a what-if, open an action, change the week on the results page (Stage 6). The checks so far read the rendered text only.
+3. [x] "Assign / mark done" is switched on and works on the live site: the action state is stored in Firestore and the action list shows it (2026-10-11).
+3b. [ ] The action table and the action drawer still show a generic line per issue type ("Safety-related charger fault"), not the backend's `reason` sentence. The reason is now on the charger and station pages; adding it to the table or drawer is a small frontend change.
+4. [ ] Make a charger action marked done count as working again, as the contract says. Today a done action only leaves the list (Stage 8).
+5. [ ] Optional: saved what-if runs (`/api/scenarios`) and demo reset (`POST /api/demo/reset`) on Firestore, with the frontend buttons (Stage 8).
+6. [ ] Optional: the three overview buttons that do nothing ("Schedule report", "View all", "Last 7 days"); AI advice with a real key (Stage 4).
+7. [ ] Tidy the docs: the examples in `docs/api_contract.md` and the introduction of `docs/AGENTS.md` still describe the first Malaysian draft; `frontend/api-contract.txt` is an outdated copy.
+8. [ ] Run the full demo twice on the live site.
+
+Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger capacity; cleaned feedback reviewed; backtest numbers handed over; "same chargers" checked and not needed (Stage 7); everything merged and deployed.
 
 ## How to run and test (any stage)
 
@@ -181,7 +193,7 @@ How the backtest works (reworked for ML's real faults; assumptions to confirm wi
 - Forecast error compares the model and "same slot last week" against `arrivals_actual`.
 - Precision and recall compare the chargers the sensors flagged with the chargers in `fault_labels.parquet`.
 
-What-if looks 72 hours ahead. Revenue = the sessions the chargers can serve (capacity formula) × revenue per session (v0.6). "Fix now" compares the working chargers with one more; "add chargers" compares them with the requested number more. The wait shown next to it still comes from the queueing model.
+What-if looks 72 hours ahead. Revenue = the sessions the chargers can serve (capacity formula) × revenue per session (v0.6). "Fix now" compares the working chargers with one more; "add chargers" compares them with the requested number more. The wait shown next to it is the average wait per arriving car over those 72 hours (v0.8). It was the peak wait before, which is the 120-minute cap or 0 on both sides in almost every real case, so the page always showed a difference of 0.
 
 ## Stage 6 — Frontend integration (on ML's real data) — Done; walkthrough by a person still to do
 
@@ -194,9 +206,10 @@ The frontend has a switch in `frontend/.env`: `VITE_DATA_MODE=mock` reads the JS
 - [x] Frontend runs with `VITE_DATA_MODE=api`
 - [x] Mismatches fixed contract first (v0.6 and v0.7)
 - [x] Pages checked against the live API on 2026-10-11: overview, station detail, what-if, results and actions were rendered in a headless browser against a local backend and their text was checked
+- [x] Live site checked after the merge into `main` (2026-10-11): six pages rendered against the deployed API, text as expected
 - [ ] Walk every page once in the browser as a person (clicking, running a what-if, opening an action)
 
-Which backend the frontend talks to: `frontend/.env` points `VITE_API_BASE_URL` at the deployed backend on Render, and so does the live website on Vercel. That server runs `main`, so it does not have contract v0.6 and v0.7 until `final` is merged. Until then the changed frontend still works against it, but shows the sample overview numbers and empty charger lists. To test against the code on this machine, set `VITE_API_BASE_URL=http://localhost:8000/api` and start the backend locally (its `CORS_ORIGINS` already allows `http://localhost:5173`).
+Which backend the frontend talks to: `frontend/.env` points `VITE_API_BASE_URL` at the deployed backend on Render, and so does the live website on Vercel. That server runs `main`, which has contract v0.7 since the merge. To test changes that are not merged yet, set `VITE_API_BASE_URL=http://localhost:8000/api` and start the backend locally (its `CORS_ORIGINS` already allows `http://localhost:5173`).
 
 What was hard-coded or not connected, and what was done about it (2026-10-11):
 
@@ -214,6 +227,9 @@ What was hard-coded or not connected, and what was done about it (2026-10-11):
 | Sidebar "Settings" link | Led to no page | Removed |
 | `max_tolerable_wait_min`, `site_issue` | Leftovers from contract v0.5 | Removed from the frontend's types, badge config and sample file |
 | Action list order | (to check) | Already shows the API's rank by default |
+| Why a charger is flagged (v0.8, not merged yet) | Nothing: no reason sentence, no evidence list, no log | The charger page shows the backend's reason, the sensor evidence, and a 14-day log: fault messages, the reading before the fault (for example cable temperature against its usual value) and the drivers' own reports |
+| Why a station needs attention (v0.8, not merged yet) | Nothing | The station page lists its open actions with the reason and the money at risk for each |
+| What-if "Predicted waiting time" and "Waiting time difference" (v0.8, not merged yet) | Always 120 → 120 or 0 → 0, difference 0 | The average wait, which moves when capacity changes (JPL plus 10 chargers on 4 Feb: 59.1 → 50.0 minutes) |
 
 Still open in the frontend:
 
@@ -311,7 +327,7 @@ Still open after Stage 7 (also in "What is left" at the top):
 - [x] Frontend on Vercel: `https://ampwise.vercel.app`, from the branch `main` (`frontend/vercel.json` on `main`), built to call the Render API
 - [x] `CORS_ORIGINS` on Render allows the Vercel address; `/api/health` answers on the live URL (checked 2026-10-11)
 - [x] Firebase: project `ampwise-portpulse-20261011` created, Firestore rules in `firebase/firestore.rules` (no client access), `app/firebase/client.py`, and `PATCH /api/actions/{id}/status` with tests. The route is live on Render
-- [ ] Merge `final` into `main`, so the live site gets contract v0.6 and v0.7 (see "What is left")
+- [x] `final` merged into `main` (pull request #6, 2026-10-11); Render and Vercel redeployed, and the live site shows contract v0.7
 - [ ] Check `FIREBASE_CREDENTIALS` in the Render dashboard. It cannot be read from outside; without it the status route answers 500 "Firestore is not configured"
 - [ ] Set `VITE_ACTION_STATUS_ENABLED=true` in Vercel (and in `frontend/.env`) to show assign / mark done
 - [ ] Not built: `POST /api/demo/reset` and `/api/scenarios`. Also, the contract says a charger action marked done counts as working again; today a done action only leaves the list
@@ -322,11 +338,11 @@ Environment variables, all checked on 2026-10-11:
 | Where | Variable | State |
 | --- | --- | --- |
 | Render | `MOCK`, `DATA_DIR`, `CORS_ORIGINS`, `PYTHON_VERSION` | Set in `render.yaml` |
-| Render | `FIREBASE_CREDENTIALS` | Secret, set by hand in the dashboard; to confirm |
+| Render | `FIREBASE_CREDENTIALS` | Set: the live site stores action states |
 | Render | `LLM_API_KEY`, `LLM_MODEL` | Not set: advice uses the templates |
 | Vercel | `VITE_API_BASE_URL`, `VITE_DATA_MODE=api` | Set (the live site calls the Render API) |
-| Vercel | `VITE_ACTION_STATUS_ENABLED` | Still to switch to `true` |
-| `backend/.env` | all six | Present; the two AI ones are empty on purpose |
+| Vercel | `VITE_ACTION_STATUS_ENABLED` | `true`: assign / mark done is shown on the live site |
+| `backend/.env` | all six | Present, but `FIREBASE_CREDENTIALS` is spread over several lines and cannot be read: fix it (see "What is left"). The two AI ones are empty on purpose |
 | `frontend/.env` | all three | Present; `VITE_ACTION_STATUS_ENABLED=false` |
 
 What is stored where. The frontend only ever calls the backend API, on a teammate's machine and when deployed:

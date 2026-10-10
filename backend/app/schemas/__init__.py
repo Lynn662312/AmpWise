@@ -1,6 +1,6 @@
 from app.schemas.action import Action, Advice, AdviceRequest
 from app.schemas.backtest import BacktestDay, BacktestResult
-from app.schemas.charger import ChargerHealth, PowerRatioPoint
+from app.schemas.charger import ChargerEvent, ChargerHealth, PowerRatioPoint
 from app.schemas.common import ActionState, ChargerStatus, IssueType, Urgency, WaitLevel
 from app.schemas.meta import Assumptions, BacktestWeek, DemoTime, FestivePeriod, HealthCheck, Meta, TimeRange
 from app.schemas.overview import OverviewResponse, OverviewTrendPoint

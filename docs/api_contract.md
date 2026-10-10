@@ -4,7 +4,7 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.7 · 2026-10-11
+Version: v0.8 · 2026-10-11
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
@@ -17,6 +17,10 @@ Version: v0.7 · 2026-10-11
 > - `rm_at_risk`, what-if revenue and `rm_protected` are now based on **estimated unserved sessions**: forecast demand above what the working chargers can serve. See "Estimated revenue at risk" in section 4.
 > - Waiting times (`predicted_wait_min`, `wait_min`, wait levels, congestion) are unchanged and still come from the queueing model.
 > - The action list has a new sort order, and the issue type `site_issue` is removed.
+>
+> **v0.8 — proof for charger actions, and what-if waits that move.**
+> - `GET /api/chargers/{charger_id}/events`: the charger's log (what its sensors reported and what drivers wrote), so a page can show why it is flagged.
+> - What-if `before_wait_min` / `after_wait_min` are now the average wait per arriving car over the next 72 hours. The peak wait they used before was almost always 120 (the cap) or 0 on both sides, so the difference was always 0.
 >
 > **v0.7 — three additions so the frontend needs no sample data.**
 > - `GET /api/stations/{station_id}/chargers`: the chargers of a station, for the charger pickers.
@@ -134,6 +138,12 @@ interface ChargerHealth {
   degraded_since: string | null;
 }
 
+interface ChargerEvent {           // v0.8: one line of a charger's log
+  time: string;                    // when it happened, station local time
+  source: "sensor" | "driver";     // the charger's own messages and readings, or a driver's report
+  message: string;                 // "Charger reported HighTemperature", "Driver report (Won't start): ..."
+}
+
 interface Action {
   id: string;
   rank: number;
@@ -170,7 +180,7 @@ interface WhatIfRequest {
 }
 
 interface WhatIfResult {
-  before_wait_min: number;
+  before_wait_min: number;         // v0.8: average wait per arriving car over the next 72 hours
   after_wait_min: number;
   before_revenue_rm: number;       // v0.6: sessions served over the next 72 hours × rm_per_session
   after_revenue_rm: number;
@@ -328,6 +338,24 @@ These are estimates of sessions the station cannot serve, not observed customers
 }]
 ```
 
+### GET `/api/chargers/{charger_id}/events?time=&days=` (v0.8)
+
+The proof behind a charger action. `days` default 14. Response `200`: `ChargerEvent[]`, newest first. `404` for an unknown charger.
+
+Only events at or before `time` are returned. Three kinds, all from ML's files and none from its answer columns:
+
+- **Fault messages** (`sensor`): each time the charger reported `Faulted`, with its error code, and when it came back.
+- **Readings** (`sensor`): for the four fault types that have a matching measurement, the most extreme reading in the 24 hours before the fault, next to the charger's usual value. `HighTemperature` → cable temperature, `OverVoltage` → voltage, `OverCurrentFailure` → current, `WeakSignal` → signal strength.
+- **Driver reports** (`driver`): the kept complaints about the charger, with the driver's own category and comment.
+
+```json
+[
+  { "time": "2020-01-09T08:00:48-08:00", "source": "sensor", "message": "Charger reported HighTemperature" },
+  { "time": "2020-01-09T07:41:12-08:00", "source": "sensor", "message": "Cable temperature reached 61.8 °C (usual 21.4 °C)" },
+  { "time": "2020-01-08T17:20:05-08:00", "source": "driver", "message": "Driver report (Won't start): Charger won't start. I tapped my card and nothing happens" }
+]
+```
+
 ### ★ POST `/api/actions/{action_id}/advice`  (AI)
 
 Body:
@@ -384,6 +412,8 @@ Body: `WhatIfRequest` → Response `200`: `WhatIfResult`
 ```
 
 The `discount` scenario is not available: the backend answers `400 bad_request`, and clients should not offer it (v0.7).
+
+v0.8: `before_wait_min` and `after_wait_min` are the average wait per arriving car over the next 72 hours (each slot's wait weighted by its arrivals), so a change in capacity shows even when the busiest slot stays over capacity.
 
 v0.6: revenue = sessions served over the next 72 hours × `rm_per_session`, with the same capacity formula as `rm_at_risk`. `fix_now` compares the current working chargers with one more; `add_chargers` compares them with `n_chargers` more. The wait values still come from the queueing model.
 
@@ -453,6 +483,7 @@ Backend reads these at startup. Path set by `DATA_DIR` in backend `.env`.
 | `report_categories.json` (v0.5, optional) | list of category, count, percentage (the `/api/reports/categories` response) | Backend (converter) |
 | `energy.parquet` (v0.7, optional) | station_id, slot_start, energy_kwh (energy delivered per 30-minute slot) | Backend (converter) |
 | `sessions.parquet` (v0.7, optional) | station_id, started_at, ended_at (one row per charging session) | Backend (converter) |
+| `charger_events.parquet` (v0.8, optional) | charger_id, time, source (`sensor` or `driver`), message (the `/api/chargers/{id}/events` log) | Backend (converter) |
 | `user_reports.parquet` (v0.4, optional) | charger_id, reported_at (one row per driver report about the charger, timestamp with offset). v0.6: the optional issue_type column is gone | ML |
 
 Dummy versions with the right columns are due by hour 3.
@@ -469,7 +500,7 @@ v0.5: `health.parquet` may cover fewer chargers than `n_chargers` (only some cha
 | `station_profile.csv` | station, sampled, mean_charge_min, median_charge_min, mean_kwh, rated_kw, energy_source, n_chargers, sessions_total | `stations.parquet`: n_chargers, rated_kw → power_kw, mean_charge_min → avg_charge_min. Names and coordinates are placeholders set in the converter. |
 | `model1_metrics.json` | festive_multiplier_assumed, test_metrics, … | Not used by the backend (holidays are no longer a focus). |
 | `acn_synth/stations.csv` | id, site_path, lat, lon, kw, … (one row per charger; ML calls a charger a "station") | Charger ids: `CAG1-003` at the site that is `stn_001` → `stn_001_c3`. Station `lat`/`lon` = the average of its chargers. Chargers at a site with no forecast are left out. |
-| `acn_synth/ocpp_events.csv` (too large for git, shared outside the repo) | timestamp, station_id, action, status, error_code, power_w, … | `health.parquet`: a `StatusNotification` with status `Faulted` makes the charger faulty on every California day until its next status message. error_code → status: `HighTemperature`, `GroundFailure`, `OverCurrentFailure`, `OverVoltage` → `safety_fault`; `ConnectorLockFailure` → `connector_fault`; `PowerMeterFailure`, `WeakSignal` → `degraded`. `p_fault` is 1 while faulted, else 0. `power_ratio` = the day's median `power_w` ÷ rated `kw`, capped at 1, carried forward on days with no reading. ML's label columns (`fault_id`, `fault_type`, `phase`) are not read. |
+| `acn_synth/ocpp_events.csv` (too large for git, shared outside the repo) | timestamp, station_id, action, status, error_code, power_w, … | `health.parquet`: a `StatusNotification` with status `Faulted` makes the charger faulty on every California day until its next status message. error_code → status: `HighTemperature`, `GroundFailure`, `OverCurrentFailure`, `OverVoltage` → `safety_fault`; `ConnectorLockFailure` → `connector_fault`; `PowerMeterFailure`, `WeakSignal` → `degraded`. `p_fault` is 1 while faulted, else 0. `power_ratio` = the day's median `power_w` ÷ rated `kw`, capped at 1, carried forward on days with no reading. ML's label columns (`fault_id`, `fault_type`, `phase`) are not read. v0.8: the same fault messages, plus `temperature_c`, `voltage_v`, `current_a` and `rssi_dbm` readings from before each fault, also go into `charger_events.parquet`. |
 | `acn_synth/fault_ground_truth.csv` | fault_id, station_id, fault_type, source, precursor_start, onset, end | `fault_labels.parquet`: station_id → charger_id, fault_type as it is, onset → start_date, end → end_date. `end` is when the fault was really repaired; the backtest uses it as "what really happened". |
 | `acn_synth/feedback_clean.csv` (written by `ml/src/preprocessing/clean_feedback.py` from `feedback.csv`) | feedback_id, timestamp, station_id, category, rating, free_text, **sentiment, is_spam, keep**, … (one row = one report, with its own id) | `sentiment` (`positive` / `negative`) is read from the comment text, not from the star rating; `is_spam` marks comments that describe nothing; `keep` = negative and not spam. Only `keep` rows are used. `report_categories.json`: their count per category. `user_reports.parquet`: only the categories about the charger itself (`Won't start`, `Slow charging`, `Cable stuck`, `Connector damaged`, `Screen broken`, `Other`). `Blocked by non-EV`, `Cleanliness` and `Payment issue` are left out of the action list (v0.6). ML's answer columns (`true_station_id`, `ground_truth_origin`, `linked_fault_id`, `noise`) are not read. |
 | `acn_synth/site_load_30min.csv` | timestamp, site, energy_kwh, power_kw, split | `energy.parquet` (v0.7): site → station_id, timestamp → slot_start (California time), energy_kwh as it is. Sites without a forecast are left out. |
@@ -530,6 +561,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-11 | v0.8 new `GET /api/chargers/{charger_id}/events` and `charger_events.parquet`; what-if wait fields are now the average wait over 72 hours, not the peak | |
 | 2026-10-11 | v0.7 new `GET /api/stations/{station_id}/chargers`; `GET /api/overview` now takes `time` and returns real totals (`energy.parquet`, `sessions.parquet`); new `meta.backtest_weeks`, and `/api/backtest?week=` uses it; `discount` what-if marked not available | |
 | 2026-10-11 | v0.6 money from capacity: `rm_at_risk`, what-if revenue and `rm_protected` use estimated unserved sessions (demand above charger capacity); `max_tolerable_wait_min` removed from `Meta.assumptions` and `params.json`; new action sort order (safety, then everything by `rm_at_risk`, then `underused`); issue type `site_issue` and `user_reports.issue_type` removed | |
 | 2026-10-10 | v0.5 ML sensor data (`acn_synth`): new issue type `site_issue` (ranked last), optional `user_reports.issue_type` and `fault_labels.end_date`, sensors may cover fewer chargers than `n_chargers`, converted files live in `backend/data/`; new `GET /api/reports/categories` and `report_categories.json` for the pie chart | |

@@ -53,7 +53,7 @@ def outlook(data: DataStore, slots: pd.DataFrame, chargers: int) -> dict[str, An
 
     Served and unserved come from capacity (chargers x slot length / charge time), not from the wait.
     """
-    served = unserved = peak_wait = 0.0
+    served = unserved = peak_wait = queue_minutes = arrivals_total = 0.0
     first_unserved = peak_time = None
     avg_charge_min = charge_min(data, slots["station_id"].iloc[0]) if len(slots) else 0.0
     for slot_start, arrivals in zip(slots["slot_start"], slots["arrivals"]):
@@ -65,11 +65,15 @@ def outlook(data: DataStore, slots: pd.DataFrame, chargers: int) -> dict[str, An
             first_unserved = slot_start.to_pydatetime()
         unserved += missed
         served += served_sessions(arrivals, avg_charge_min, chargers)
+        queue_minutes += arrivals * wait
+        arrivals_total += arrivals
     return {
         "served": served,
         "unserved": unserved,
         "first_unserved": first_unserved,
         "peak_wait_min": peak_wait,
+        # The wait an arriving car can expect on average: it moves even when the peak stays at the cap.
+        "avg_wait_min": round(queue_minutes / arrivals_total, 1) if arrivals_total else 0.0,
         "peak_time": peak_time,
     }
 
