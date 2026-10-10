@@ -1,0 +1,149 @@
+AmpWise — Frontend API v0.4 integration checklist
+==================================================
+
+Contract source status
+----------------------
+
+- Requested source: `../docs/api_contract.md`
+- Actual result: file is not present in this repository checkout.
+- Available reference: `frontend/api-contract.txt`, labelled v0.4.
+- The legacy reference still contains Malaysian, RM and +08:00 examples that
+  conflict with the v0.4 US/California rules. These conflicts are documented
+  in `note-add-2.txt`; the authoritative contract was not edited.
+
+Verification environment
+------------------------
+
+- Branch: `gy-fe-branch`
+- Backend check: `GET http://localhost:8000/api/health` was attempted.
+- Result: backend unavailable; connection refused.
+- Therefore no endpoint is marked “connected and verified” against a live
+  FastAPI response.
+- Frontend production build: passed.
+- `git diff --check`: passed.
+- No browser or live-network flow is claimed as verified.
+
+Endpoint progress
+-----------------
+
+### GET /api/meta
+
+- Parameters: none.
+- Expected fields: `corridor_name`, `currency`, `time_range`,
+  `festive_periods`, `demo_times`, `assumptions`.
+- Frontend: connected through the shared data service and React Query.
+- Uses metadata to initialize simulated time and currency formatting.
+- Status: Connected in mock mode; live verification blocked because backend is
+  unavailable.
+
+### GET /api/health
+
+- Parameters: none.
+- Expected fields: `status`, plus backend health metadata when available.
+- Frontend: connected through the shared system service.
+- Status: Typed and wired; live verification blocked.
+
+### GET /api/stations?time=
+
+- Required parameter: station-local ISO 8601 timestamp with offset.
+- Expected fields: `id`, `name`, `lat`, `lon`, `n_chargers`, `n_working`,
+  `power_kw`, `predicted_wait_min`, `level`, `open_issue_count`.
+- Frontend: connected; California-only map behavior is preserved and no region
+  parameter is sent.
+- Status: Connected in code; live response not verified.
+- Remaining issue: API stations do not provide a location field in v0.4, so the
+  UI displays a safe unavailable location label when necessary.
+
+### GET /api/stations/{station_id}/forecast?start=&hours=
+
+- Required parameters: `start`, `hours`.
+- Expected fields per 30-minute slot: `slot_start`, `arrivals`,
+  `arrivals_baseline`, `wait_min`, `is_festive`.
+- Frontend: connected with AbortSignal and stable React Query keys.
+- Status: Connected in code; live verification blocked.
+
+### GET /api/chargers/{charger_id}/health?time=&days=
+
+- Required parameters: verified `charger_id`, station-local `time`, `days`.
+- Expected fields: `charger_id`, `station_id`, `status`, `p_fault`, `evidence`,
+  `series`, `degraded_since`.
+- Frontend: connected and maps `series` to the health chart.
+- Status: Connected in code; live verification blocked.
+- Remaining issue: v0.4 does not define station-to-charger discovery. The
+  frontend no longer guesses charger IDs in API mode.
+
+### GET /api/actions?time=&limit=
+
+- Required parameters: station-local `time`, optional `limit`.
+- Expected v0.4 fields: `id`, `rank`, `issue_type`, `station_id`,
+  `station_name`, `charger_id`, `recommended_action`, `rm_at_risk`,
+  `deadline`, `urgency`, `reason`, `report_count`, `first_reported_at`,
+  `state`.
+- Frontend: connected with stable action IDs and explicit v0.4 validation.
+- Added `user_reported` support across badges, filters, alerts and details.
+- Status: Connected in code; live verification blocked.
+- Contract mismatch behavior: old responses missing `report_count` or
+  `first_reported_at` produce a visible query error instead of fabricated data.
+
+### POST /api/actions/{action_id}/advice
+
+- Body: `{ "time": "...", "language": "en|zh|ms" }`.
+- Expected fields: `action_id`, `summary`, `steps`, `caveats`, `source`,
+  `cached`.
+- Frontend: explicit on-demand mutation; AI advice is restored in the action
+  detail drawer.
+- Status: Connected in code; live verification blocked.
+
+### PATCH /api/actions/{action_id}/status
+
+- Body: `{ "state": "assigned" | "done" }`.
+- Frontend: gated by `VITE_ACTION_STATUS_ENABLED=true`.
+- Status: Conditional; not enabled until the backend route is live-tested.
+
+### POST /api/whatif
+
+- Body: v0.4 scenario request with only scenario-specific fields.
+- Expected fields: `before_wait_min`, `after_wait_min`,
+  `before_revenue_rm`, `after_revenue_rm`, `summary`.
+- Frontend: connected through a React Query mutation with no silent fallback.
+- Status: Connected in code; live verification blocked.
+- Delayed repair remains mock-only because v0.4 has no repair-date field.
+
+### GET /api/backtest?week=
+
+- Required parameter: supported evaluation week identifier.
+- Expected fields: `week_label`, impact metrics, fault metrics and `daily[]`.
+- Frontend: connected and renders the daily comparison chart.
+- Status: Connected in code; live verification blocked.
+- Remaining issue: supported California evaluation weeks are not exposed by
+  the available Meta contract, so the frontend currently needs a documented
+  week registry or a Meta field.
+
+### POST /api/demo/reset
+
+- Status: Not implemented in the frontend; endpoint is optional in the
+  available v0.4 reference.
+
+### GET/POST /api/scenarios
+
+- Status: Not implemented in the frontend; endpoint is optional in the
+  available v0.4 reference. The frontend never accesses Firestore directly.
+
+### Sessions and uptime
+
+- Status: Not defined by the available v0.4 reference. Sessions remains local
+  demo data and is not claimed as live API data.
+
+Migration completed
+-------------------
+
+- Added `user_reported` issue classification.
+- Added `report_count` and `first_reported_at` to Action types and API checks.
+- Preserved backend-provided rank as the default Action Center ordering.
+- Added driver-report details without treating them as confirmed sensor faults.
+- Kept California-only station behavior and removed the Map region selector.
+- Preserved USD currency configuration through `meta.currency`.
+- Updated simulated time to preserve the selected California local date and
+  offset when the time slider changes.
+- Prevented API-mode Charger Health from deriving charger IDs from counts.
+- Updated notifications and Overview charger alerts for `user_reported`.

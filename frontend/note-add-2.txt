@@ -1,0 +1,331 @@
+AmpWise — Backend handoff for unresolved v0.4 requirements
+===========================================================
+
+This file contains only requirements that are not fully available in the
+current v0.4 reference or could not be verified because the backend at
+`localhost:8000` is not running. Existing v0.4 endpoints are tracked in
+`note-add.txt` and are not repeated as new feature requests here.
+
+Contract clarification required
+-------------------------------
+
+Problem:
+
+The requested `docs/api_contract.md` is missing. The available
+`frontend/api-contract.txt` is labelled v0.4 but still contains conflicting
+legacy examples and rules:
+
+- Introduction says US ACN / California data, but conventions still say
+  Malaysia time and RM.
+- The introduction says USD and California local offsets.
+- Examples still use Malaysian station IDs, Hari Raya, RM and `+08:00`.
+- The v0.4 text still lists `raya_2026` as the backtest default.
+- The Meta example still contains Hari Raya dates.
+
+Affects: all API-connected routes.
+
+Request:
+
+- Publish the authoritative v0.4 file at `docs/api_contract.md`.
+- Confirm California station-local timestamps and daylight-saving behavior.
+- Confirm `meta.currency === "USD"`.
+- Confirm supported California evaluation-week identifiers.
+
+Verification criteria:
+
+- A clean contract file exists at the requested path.
+- Meta, station, forecast, action and backtest examples all use California and
+  USD conventions consistently.
+
+Priority: Required.
+
+1. Station-to-charger discovery
+-------------------------------
+
+Problem:
+
+The v0.4 reference defines charger health by `charger_id`, but does not define
+how the frontend discovers the chargers belonging to a station. The frontend
+must not construct IDs from `n_chargers`.
+
+Affected routes: `/stations/:id`, `/chargers/:id`, `/what-if`.
+
+Suggested endpoint:
+
+GET /api/stations/{station_id}/chargers
+
+Required parameters:
+
+- Path: `station_id`.
+
+Proposed response:
+
+```json
+[
+  {
+    "charger_id": "California_Garage_01_c1",
+    "station_id": "California_Garage_01",
+    "power_kw": 150,
+    "status": "healthy"
+  }
+]
+```
+
+Priority: Required.
+
+Verification criteria:
+
+- Every returned charger ID is accepted by `/api/chargers/{charger_id}/health`.
+- Every charger references the requested station.
+- Empty charger lists are returned explicitly when no chargers are known.
+
+2. California operational dataset coverage
+------------------------------------------
+
+Problem:
+
+The frontend has four source-coordinate California station records, but the
+available v0.4 reference does not confirm that the backend serves those same
+IDs with operational values.
+
+Affected route: `/map` and dependent station pages.
+
+Existing endpoint:
+
+GET /api/stations?time={station_local_iso_timestamp}
+
+Required response behavior:
+
+- Include the canonical California station IDs.
+- Return `n_chargers`, `n_working`, `power_kw`, `predicted_wait_min`,
+  `level` and `open_issue_count` when available.
+- Return `null` or a documented unavailable response when a value is unknown;
+  do not use fabricated zeros.
+
+Example request:
+
+GET /api/stations?time=2019-12-24T09:00:00-08:00
+
+Priority: Required.
+
+Verification criteria:
+
+- All active station IDs are California records.
+- Coordinates match the source records exactly.
+- Wait level follows the backend classification.
+
+3. California forecast coverage
+------------------------------
+
+Problem:
+
+The frontend supports the v0.4 forecast shape, but forecast availability for
+the active California stations and supported dates has not been verified.
+
+Existing endpoint:
+
+GET /api/stations/{station_id}/forecast?start={timestamp}&hours={hours}
+
+Required response fields:
+
+- `slot_start`
+- `arrivals`
+- `arrivals_baseline`
+- `wait_min`
+- `is_festive`
+
+Example request:
+
+GET /api/stations/California_Garage_01/forecast?start=2019-12-24T09:00:00-08:00&hours=2
+
+Priority: Required.
+
+Verification criteria:
+
+- Slots are 30 minutes apart.
+- The timestamp offset is preserved.
+- An unsupported station/time returns a documented empty or error response.
+
+4. Driver-report source data
+----------------------------
+
+Problem:
+
+The v0.4 Action shape requires `report_count` and `first_reported_at`, and
+defines `user_reported` as reports without a confirmed sensor fault. Live
+availability of this data is not verified.
+
+Existing endpoint:
+
+GET /api/actions?time={timestamp}&limit={limit}
+
+Required response fields:
+
+- `issue_type: "user_reported"` when the v0.4 rule is met.
+- `report_count`.
+- `first_reported_at` with its original offset, or `null`.
+- No duplicate action when sensors already identify the same charger fault.
+
+Example response fragment:
+
+```json
+{
+  "id": "user_reported:California_Garage_01:California_Garage_01_c1",
+  "issue_type": "user_reported",
+  "report_count": 3,
+  "first_reported_at": "2019-12-24T08:30:00-08:00",
+  "charger_id": "California_Garage_01_c1",
+  "state": "open"
+}
+```
+
+Priority: Required if driver reports are part of the demo.
+
+Verification criteria:
+
+- Frontend can render all seven issue types.
+- Driver reports are not presented as confirmed hardware faults.
+- Backend rank remains the recommended default order.
+
+5. Evaluation-week registry and backtest coverage
+-------------------------------------------------
+
+Problem:
+
+The frontend can render v0.4 `BacktestResult`, but the available Meta shape
+does not publish supported California week values. Live backtest coverage is
+not verified.
+
+Existing endpoint:
+
+GET /api/backtest?week={week}
+
+Required response fields:
+
+- `week_label`
+- `queue_minutes_saved`
+- `rm_protected`
+- `forecast_mae_ours`
+- `forecast_mae_baseline`
+- `fault_precision`
+- `fault_recall`
+- `daily[]`
+
+Suggested addition:
+
+- Add `evaluation_weeks` to `/api/meta`, or publish a documented registry.
+
+Priority: Required for `/results`.
+
+Verification criteria:
+
+- Every selectable week is accepted by the backend.
+- Daily values use the selected week and California data.
+- Currency is interpreted from `meta.currency` as USD.
+
+6. Sessions and network uptime
+------------------------------
+
+Problem:
+
+The v0.4 reference does not define session records or uptime aggregates. The
+frontend cannot claim live Sessions data.
+
+Proposed endpoints — not part of the current contract:
+
+- GET /api/sessions
+- GET /api/network/status
+
+Proposed fields:
+
+- session records and timestamps
+- online station count
+- total station count
+- uptime percentage
+- optional time-range parameters
+
+Priority: Required only if live Sessions/uptime is needed.
+
+Verification criteria:
+
+- Backend publishes an agreed schema before the frontend enables API mode for
+  Sessions.
+
+7. Delayed-repair what-if scenario
+----------------------------------
+
+Problem:
+
+v0.4 supports `fix_now`, `add_chargers` and `discount`, but does not include a
+repair date or repair offset for a real after-peak comparison.
+
+Existing endpoint:
+
+POST /api/whatif
+
+Proposed request addition:
+
+```json
+{
+  "scenario": "fix_now",
+  "time": "2019-12-24T09:00:00-08:00",
+  "station_id": "California_Garage_01",
+  "charger_id": "California_Garage_01_c1",
+  "repair_time": "2019-12-24T18:00:00-08:00"
+}
+```
+
+Priority: Optional.
+
+Verification criteria:
+
+- Backend documents the delayed calculation and returns a distinct, evidence-
+  based before/after result.
+- Frontend does not send this field until the contract is approved.
+
+8. Saved scenarios and demo reset
+---------------------------------
+
+Problem:
+
+The v0.4 reference lists these as optional, but the frontend does not enable
+them and never accesses Firestore directly.
+
+Proposed endpoints — not currently enabled:
+
+- POST /api/scenarios
+- GET /api/scenarios
+- POST /api/demo/reset
+
+Required before implementation:
+
+- Scenario ID and ownership/session rules.
+- Saved request/result schema.
+- Reset authorization and exact reset scope.
+
+Priority: Optional.
+
+9. Production deployment and real ML confirmation
+-------------------------------------------------
+
+Problem:
+
+The backend is not reachable at `localhost:8000`, so live ML mode, CORS and
+deployment responses cannot be verified.
+
+Backend handoff needed:
+
+- Production API base URL for `VITE_API_BASE_URL`.
+- Allowed deployed frontend origins in FastAPI CORS.
+- `MOCK=0` confirmation for real model output.
+- Representative responses from all required endpoints.
+- Confirmation that results are California/US data, not legacy Malaysian
+  fixtures.
+
+Priority: Required before production demo claims.
+
+Verification criteria:
+
+- `/api/health` is reachable from the deployed frontend.
+- `mock` and `llm_configured` values are understood and displayed correctly.
+- No API failure silently falls back to local JSON.
