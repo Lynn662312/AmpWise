@@ -16,4 +16,4 @@ services:
       - key: DATA_DIR
         value: ./data
       - key: CORS_ORIGINS
-        value: http://localhost:5173
+        value: http://localhost:5173,https://ampwise.vercel.app
