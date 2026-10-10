@@ -61,7 +61,11 @@ export function AppSelect({ value, onValueChange, options, placeholder = "Select
     setPosition({ top, left, width })
   }
 
-  useLayoutEffect(() => { if (open) updatePosition() }, [open, filteredOptions.length])
+  useLayoutEffect(() => {
+    if (!open) return
+    const frame = window.requestAnimationFrame(updatePosition)
+    return () => window.cancelAnimationFrame(frame)
+  }, [open, filteredOptions.length])
 
   useEffect(() => {
     if (!open) return
@@ -79,6 +83,7 @@ export function AppSelect({ value, onValueChange, options, placeholder = "Select
         if (option && !option.disabled) { onValueChange(option.value); setOpen(false); triggerRef.current?.focus() }
         return
       }
+      if (!filteredOptions.length) return
       const direction = event.key === "ArrowDown" ? 1 : -1
       let next = activeIndex
       for (let i = 0; i < filteredOptions.length; i += 1) {
@@ -110,7 +115,7 @@ export function AppSelect({ value, onValueChange, options, placeholder = "Select
     <button ref={triggerRef} id={fieldId} type="button" role="combobox" aria-expanded={open} aria-controls={open ? listId : undefined} aria-haspopup="listbox" aria-required={required} aria-invalid={error ? true : undefined} aria-describedby={fieldDescribedBy(fieldId, description, error)} disabled={disabled} onClick={() => setOpen((current) => !current)} onKeyDown={handleTriggerKeyDown} className={cn("flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 text-left font-medium text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-60", sizeClasses[size])}>
       <span className={cn("min-w-0 truncate", !selected && "text-muted-foreground")}>{selected?.label ?? placeholder}</span><ChevronDown size={16} className={cn("shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
     </button>
-    {open && position && createPortal(<div ref={panelRef} id={listId} role="listbox" tabIndex={-1} className="fixed z-[60] max-h-[320px] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl" style={{ top: position.top, left: position.left, width: position.width }}>
+    {open && position && createPortal(<div ref={panelRef} id={listId} role="listbox" tabIndex={-1} className="fixed z-[var(--z-dropdown)] max-h-[320px] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl" style={{ top: position.top, left: position.left, width: position.width }}>
       {searchable && <div className="relative mb-1.5"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} aria-label={searchPlaceholder} className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30" /></div>}
       <div className="max-h-[260px] overflow-y-auto">
         {filteredOptions.length === 0 && <p className="px-3 py-6 text-center text-xs text-muted-foreground">{emptyMessage}</p>}

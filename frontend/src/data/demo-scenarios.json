@@ -1,0 +1,5 @@
+[
+  { "id": "normal", "name": "Normal Operations", "description": "A steady day with mostly available capacity.", "time": 480, "station_id": "kl-sentral", "charger_id": "kl-sentral_c1", "route": "/map?station=kl-sentral" },
+  { "id": "festive-peak", "name": "Festive Travel Peak", "description": "Higher corridor demand and longer predicted queues.", "time": 1080, "station_id": "seremban-north", "charger_id": "seremban-north_c1", "route": "/map?station=seremban-north" },
+  { "id": "charger-failure", "name": "Charger Failure Impact", "description": "Inspect degraded capacity and its operational impact.", "time": 840, "station_id": "muar-rest-stop", "charger_id": "muar-rest-stop_c1", "route": "/map?station=muar-rest-stop" }
+]

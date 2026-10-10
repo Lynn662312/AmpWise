@@ -1,7 +1,7 @@
-import { getMockStations } from "@/data/mockStations"
 import { getMapData, postMapData, type MapStationInput } from "@/services/map-service"
 import type { ChargingStation, StationForecast } from "@/features/map/types"
 import { fetchJson, isApiMode } from "@/services/api-client"
+import { getMockStations } from "@/services/mockService"
 
 export async function fetchStations(timeMinutes: number): Promise<{ stations: ChargingStation[]; source: "api" | "mock" }> {
   const { stations, source } = await getMapData(timeMinutes)

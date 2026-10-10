@@ -1,0 +1,15 @@
+[
+  { "station_id": "kl-sentral", "base_wait_min": 6, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "bangsar-south", "base_wait_min": 24, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "putrajaya-gateway", "base_wait_min": 11, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "cyberjaya-techpark", "base_wait_min": 4, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "seremban-north", "base_wait_min": 29, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3, "festive": true },
+  { "station_id": "melaka-central", "base_wait_min": 17, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "muar-rest-stop", "base_wait_min": 0, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "iskandar-puteri", "base_wait_min": 8, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "jb-city-centre", "base_wait_min": 14, "time_amplitude_min": 8, "next_hour_offset_min": 4, "later_hour_offset_min": -3 },
+  { "station_id": "California_Garage_01", "base_wait_min": 9, "time_amplitude_min": 5, "next_hour_offset_min": 3, "later_hour_offset_min": -2 },
+  { "station_id": "S_Wilson_Garage_01", "base_wait_min": 7, "time_amplitude_min": 4, "next_hour_offset_min": 2, "later_hour_offset_min": -2 },
+  { "station_id": "California_Garage_02", "base_wait_min": 11, "time_amplitude_min": 6, "next_hour_offset_min": 3, "later_hour_offset_min": -2 },
+  { "station_id": "Arroyo_Garage_01", "base_wait_min": 16, "time_amplitude_min": 5, "next_hour_offset_min": 4, "later_hour_offset_min": -3 }
+]

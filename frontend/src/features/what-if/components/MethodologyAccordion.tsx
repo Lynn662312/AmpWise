@@ -15,7 +15,7 @@ export function MethodologyAccordion() {
         </div>
         <div className="mt-5 grid gap-5 border-t border-border pt-5 md:grid-cols-2">
           <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Method</p><ol className="mt-3 space-y-3">{steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-primary">{index + 1}</span><span>{step}</span></li>)}</ol></div>
-          <div className="rounded-2xl bg-muted p-4 text-sm leading-6 text-muted-foreground"><p className="font-semibold text-foreground">Important assumptions</p><p className="mt-2">Forecasts are estimates. Some Malaysian demand adjustments are assumption-based, charger faults may use simulated telemetry, and revenue depends on a configurable assumed RM value per session.</p></div>
+          <div className="rounded-2xl bg-muted p-4 text-sm leading-6 text-muted-foreground"><p className="font-semibold text-foreground">Important assumptions</p><p className="mt-2">Forecasts are estimates. Some Malaysian demand adjustments are assumption-based, charger faults may use modeled telemetry, and revenue depends on a configurable assumed RM value per session.</p></div>
         </div>
       </Dialog.Content>
     </Dialog.Portal>

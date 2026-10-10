@@ -1,17 +1,18 @@
-import { getMapSeedData, getMockStations, saveMapSeed } from "@/data/mockStations"
+import { getMapSeedData, getMockStations, saveMapSeed } from "@/services/mockService"
 import type { ChargingStation } from "@/features/map/types"
 import { fetchJson, isApiMode } from "@/services/api-client"
 
 export type MapStationInput = {
   id: string
   name: string
-  location: string
+  region: string
+  location: string | null
   lat: number
   lon: number
-  n_chargers: number
-  n_working: number
-  power_kw: number
-  baseWait: number
+  n_chargers: number | null
+  n_working: number | null
+  power_kw: number | null
+  baseWait: number | null
 }
 
 export async function getMapData(timeMinutes: number): Promise<{ stations: ChargingStation[]; source: "api" | "mock"; corridor: string }> {

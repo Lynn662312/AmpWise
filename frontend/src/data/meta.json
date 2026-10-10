@@ -1,0 +1,8 @@
+{
+  "source": "mock",
+  "corridor": "KL–JB corridor",
+  "timezone": "Asia/Kuala_Lumpur",
+  "simulation_time_minutes": { "min": 0, "max": 1439, "step": 30 },
+  "festive_dates": ["2026-10-10T08:00:00+08:00"],
+  "evaluation_weeks": ["2026-10-05", "2026-09-28", "2026-09-21"]
+}

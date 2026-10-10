@@ -9,12 +9,13 @@ export type StationForecast = {
 export type ChargingStation = {
   id: string
   name: string
-  location: string
+  region: string
+  location: string | null
   lat: number
   lon: number
-  n_chargers: number
-  n_working: number
-  power_kw: number
+  n_chargers: number | null
+  n_working: number | null
+  power_kw: number | null
   predicted_wait_min: number | null
   level: StationLevel
   forecast: StationForecast[]

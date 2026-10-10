@@ -3,6 +3,7 @@ import { List, MapPin, RefreshCw, Search, X } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
+import { AppSelect } from "@/components/common/AppSelect"
 import { AppTextField } from "@/components/common/AppTextField"
 import { useSimulatedTime } from "@/context/TimeContext"
 import { MapFilters } from "@/features/map/components/MapFilters"
@@ -11,6 +12,7 @@ import { StationDetailDrawer } from "@/features/map/components/StationDetailDraw
 import { StationList } from "@/features/map/components/StationList"
 import { useMapStations } from "@/features/map/hooks/useMapStations"
 import type { StationFilter } from "@/features/map/types"
+import { regions, type RegionId } from "@/features/map/config/regions"
 import { filterStations } from "@/features/map/utils/mapHelpers"
 import { cn } from "@/lib/utils"
 
@@ -20,25 +22,37 @@ export function MapPage() {
   const { data, isError, refetch, isFetching } = useMapStations()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<StationFilter>("all")
+  const [region, setRegion] = useState<RegionId>("california")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showStationRail, setShowStationRail] = useState(false)
   const stations = data?.stations ?? []
-  const filteredStations = useMemo(() => filterStations(stations, query, filter), [filter, query, stations])
-  const selectedStation = stations.find(({ id }) => id === selectedId) ?? null
-  const workingChargers = stations.reduce((sum, station) => sum + station.n_working, 0)
-  const highCongestion = stations.filter(({ level }) => level === "high").length
-  const waitStations = stations.filter(({ predicted_wait_min }) => predicted_wait_min !== null)
+  const regionStations = useMemo(() => stations.filter((station) => station.region === region), [region, stations])
+  const filteredStations = useMemo(() => filterStations(regionStations, query, filter), [filter, query, regionStations])
+  const selectedStation = regionStations.find(({ id }) => id === selectedId) ?? null
+  const workingChargers = regionStations.reduce((sum, station) => sum + (station.n_working ?? 0), 0)
+  const hasOperationalData = regionStations.some((station) => station.n_working !== null)
+  const highCongestion = regionStations.filter(({ level }) => level === "high").length
+  const waitStations = regionStations.filter(({ predicted_wait_min }) => predicted_wait_min !== null)
   const averageWait = waitStations.length ? Math.round(waitStations.reduce((sum, station) => sum + (station.predicted_wait_min ?? 0), 0) / waitStations.length) : 0
   const closeStation = useCallback((open: boolean) => { if (!open) setSelectedId(null) }, [])
   const handleFilterChange = useCallback((next: StationFilter) => {
     setFilter(next)
     setSelectedId((current) => {
-      const station = stations.find(({ id }) => id === current)
+      const station = regionStations.find(({ id }) => id === current)
       return station && next !== "all" && station.level !== next ? null : current
     })
-  }, [stations])
+  }, [regionStations])
+
+  const handleRegionChange = useCallback((next: string) => {
+    if (!regions.some((item) => item.id === next)) return
+    setRegion(next as RegionId)
+    setSelectedId(null)
+    setFilter("all")
+  }, [])
 
   useEffect(() => {
+    const requestedRegion = searchParams.get("region")
+    if (regions.some((item) => item.id === requestedRegion)) setRegion(requestedRegion as RegionId)
     const requestedStation = searchParams.get("station")
     if (requestedStation && stations.some(({ id }) => id === requestedStation)) setSelectedId(requestedStation)
   }, [searchParams, stations])
@@ -46,22 +60,22 @@ export function MapPage() {
   return <div className="space-y-4 pb-4">
     <section className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
       <div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><MapPin size={13} className="text-primary" /> Malaysia operations</div>
-        <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">Charging network <span className="text-primary">overview.</span></h1>
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><MapPin size={13} className="text-primary" /> {regions.find((item) => item.id === region)?.label} operations</div>
+        <h1 className="mt-2 font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Charging network <span className="text-primary">overview</span></h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Demand, availability and predicted congestion in one operational view.</p>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="hidden rounded-full bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground sm:inline-flex">{timeLabel} · {data?.source === "mock" ? "Demo forecast" : "Live feed"}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        <span className="hidden rounded-full bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground sm:inline-flex">{timeLabel}</span>
+        <AppSelect label="Region" size="sm" value={region} onValueChange={handleRegionChange} options={regions.map((item) => ({ value: item.id, label: item.label }))} className="w-[140px]" />
         <Button variant="soft" onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh station data"><RefreshCw className={cn(isFetching && "animate-spin")} size={15} /><span className="hidden sm:inline">Refresh</span></Button>
       </div>
     </section>
 
     <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold text-muted-foreground scrollbar-none">
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-success" /><AnimatedNumber value={stations.length} /> stations</span>
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-primary" /><AnimatedNumber value={workingChargers} /> working chargers</span>
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-warning" /><AnimatedNumber value={highCongestion} /> high congestion</span>
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-info" /><AnimatedNumber value={averageWait} suffix=" min" /> average wait</span>
-      <span className="ml-auto hidden shrink-0 text-muted-foreground sm:inline">Predictions are simulated, not live availability.</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-success" /><AnimatedNumber value={regionStations.length} /> stations</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-primary" />{hasOperationalData ? <AnimatedNumber value={workingChargers} /> : "Data unavailable"} working chargers</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-warning" />{hasOperationalData ? <AnimatedNumber value={highCongestion} /> : "Data unavailable"} high congestion</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-info" />{waitStations.length ? <AnimatedNumber value={averageWait} suffix=" min" /> : "Data unavailable"} average wait</span>
     </div>
 
     <section className="relative grid min-h-[min(76vh,780px)] gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]">

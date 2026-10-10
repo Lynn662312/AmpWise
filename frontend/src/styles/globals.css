@@ -35,6 +35,14 @@
   --popover: var(--surface-elevated);
   --popover-foreground: var(--foreground);
   --radius: 1.25rem;
+  --z-page: 0;
+  --z-header: 20;
+  --z-map-controls: 400;
+  --z-map-panel: 650;
+  --z-dropdown: 700;
+  --z-modal-overlay: 1100;
+  --z-modal-content: 1101;
+  --z-toast: 1200;
 }
 
 .dark {
@@ -69,6 +77,56 @@
 .leaflet-popup-close-button { color: var(--muted-foreground) !important; }
 .leaflet-control-attribution { background: color-mix(in srgb, var(--card) 88%, transparent) !important; color: var(--muted-foreground); }
 .leaflet-control-attribution a { color: var(--primary); }
+
+@keyframes network-pulse-draw {
+  from { stroke-dasharray: 0 500; opacity: 0.35; }
+  to { stroke-dasharray: 500 0; opacity: 1; }
+}
+
+@keyframes network-node-appear {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes network-node-breathe {
+  0%, 100% { opacity: 0.84; }
+  50% { opacity: 1; }
+}
+
+.network-status-tilt {
+  transform: perspective(1200px) rotateX(var(--network-tilt-y, 0deg)) rotateY(var(--network-tilt-x, 0deg));
+  transition: transform 220ms ease-out;
+}
+
+.network-pulse-paths path {
+  animation: network-pulse-draw 900ms ease-out both;
+}
+
+.network-pulse-paths path:nth-child(2) { animation-delay: 100ms; }
+.network-pulse-paths path:nth-child(3) { animation-delay: 180ms; }
+.network-pulse-paths path:nth-child(4) { animation-delay: 260ms; }
+.network-pulse-paths path:nth-child(5) { animation-delay: 340ms; }
+
+.network-pulse-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: network-node-appear 650ms ease-out both;
+}
+
+.network-pulse-node:nth-child(2) { animation-delay: 80ms; }
+.network-pulse-node:nth-child(3) { animation-delay: 140ms; }
+.network-pulse-node:nth-child(4) { animation-delay: 200ms; }
+.network-pulse-node:nth-child(5) { animation-delay: 260ms; }
+.network-pulse-node:nth-child(6) { animation-delay: 320ms; }
+.network-pulse-node:nth-child(7) { animation-delay: 380ms; }
+.network-pulse-node--active { animation: network-node-appear 650ms ease-out both, network-node-breathe 3.2s ease-in-out 900ms infinite; }
+.network-pulse-node--muted { opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .network-status-tilt { transform: none; transition: none; }
+  .network-pulse-paths path, .network-pulse-node { animation: none; }
+  .network-pulse-signals { display: none; }
+}
 .station-marker-icon { background: transparent; border: 0; }
 .station-marker { display: grid; width: 38px; height: 38px; place-items: center; border: 3px solid var(--card); border-radius: 999px 999px 999px 4px; background: var(--station-marker-bg); color: var(--station-marker-foreground); box-shadow: 0 5px 15px color-mix(in srgb, var(--primary) 25%, transparent); transform: rotate(-45deg); transition: transform 180ms ease, box-shadow 180ms ease; }
 .station-marker svg { width: 24px; height: 24px; transform: rotate(45deg); }
@@ -123,3 +181,11 @@
 }
 
 .pulse-ring { animation: pulse-ring 2.4s ease-out infinite; }
+
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-8deg); }
+  80% { transform: rotate(4deg); }
+}

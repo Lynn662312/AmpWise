@@ -2,7 +2,7 @@ import { RefreshCw, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DataSourceBadge } from "@/components/common/DataSourceBadge"
-import { evaluationWeeks } from "@/mocks/backtest"
+import { getEvaluationWeeks } from "@/services/mockService"
 import { isBacktestMockMode } from "@/services/backtest-service"
 import { EvaluationWeekSelector } from "@/features/results/components/EvaluationWeekSelector"
 import { FaultDetectionMetrics } from "@/features/results/components/FaultDetectionMetrics"
@@ -15,11 +15,12 @@ import { cn } from "@/lib/utils"
 import { useState } from "react"
 
 export function ResultsPage() {
+  const evaluationWeeks = getEvaluationWeeks()
   const [week, setWeek] = useState(evaluationWeeks[0].value)
   const { data, isLoading, isError, isFetching, refetch } = useBacktestResults(week)
 
   return <div className="space-y-7 pb-6">
-    <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><Sparkles size={14} className="text-primary" /> Evaluation workspace</p><h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">Results &amp; impact<span className="text-primary">.</span></h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">See how predictive maintenance and smarter charging decisions could improve network performance.</p></div><div className="flex items-center gap-2"><EvaluationWeekSelector weeks={evaluationWeeks} value={week} onChange={setWeek} /><Button variant="soft" onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh evaluation results"><RefreshCw className={cn(isFetching && "animate-spin")} size={15} /><span className="hidden sm:inline">Refresh</span></Button></div></section>
+    <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><Sparkles size={14} className="text-primary" /> Evaluation workspace</p><h1 className="mt-2 font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Results &amp; impact</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">See how predictive maintenance and smarter charging decisions could improve network performance.</p></div><div className="flex items-center gap-2"><EvaluationWeekSelector weeks={evaluationWeeks} value={week} onChange={setWeek} /><Button variant="soft" onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh evaluation results"><RefreshCw className={cn(isFetching && "animate-spin")} size={15} /><span className="hidden sm:inline">Refresh</span></Button></div></section>
     <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><DataSourceBadge mock={isBacktestMockMode} mockLabel="Demo backtest · fake history" liveLabel="Connected model evaluation" /><span>Lower MAE is better · revenue figures are estimates</span></div>
     {isLoading ? <LoadingState /> : isError || !data ? <ErrorState onRetry={() => void refetch()} /> : <><ImpactSummary result={data.result} source={data.source} /><StrategyComparison /><section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"><ForecastAccuracyChart result={data.result} /><FaultDetectionMetrics result={data.result} /></section><MethodologyAccordion /></>}
   </div>
