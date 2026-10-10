@@ -8,6 +8,7 @@ Read this before writing any code in this repo.
 > v0.5: ML's sensor log, real faults and driver feedback (`ml/output/acn_synth/`) are integrated.
 > v0.6: money comes from charger capacity, not waiting time. `max_tolerable_wait_min` and the issue type `site_issue` no longer exist. Ranking: safety faults, then everything else by money at risk, then underused stations.
 > v0.7: new `GET /api/stations/{id}/chargers`, real `GET /api/overview?time=` and `meta.backtest_weeks`. The frontend needs no sample data in API mode.
+> v0.8: `GET /api/chargers/{id}/events` (the charger's log) and what-if waits as the average wait. v0.9: a session is unserved only when every charger is busy (occupancy rule); what-if also returns the money at risk before and after.
 
 ## What we are building
 
@@ -66,7 +67,7 @@ docs/             api_contract.md
 | arrivals | cars arriving at a station in a slot (from ML 1) |
 | n_working | chargers not flagged faulty and not out of service |
 | wait | M/M/c (Erlang C) expected wait from arrivals, avg charge time, n_working |
-| unserved sessions | forecast arrivals above capacity in a slot, where capacity = `n_working` × 30 ÷ average charge time. An estimate, not customers seen leaving |
+| unserved sessions | cars forecast to arrive while every working charger is busy; a served car holds its charger for the average charge time. An estimate, not customers seen leaving |
 | rm_at_risk | estimated revenue at risk: unserved sessions over the next 72 hours that fixing the issue would serve × `rm_per_session` |
 | issue types | safety_fault, degraded, connector_fault, user_reported, congestion, chronic_undercapacity, underused |
 | priority | safety_fault first; then every charger and station issue by rm_at_risk (ties: driver reports); underused last |

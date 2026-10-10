@@ -54,8 +54,8 @@ Action status makes the demo feel real: a judge clicks "Mark done", the charger 
 | --- | --- |
 | ★ `erlang_c(lam, mu, c)` | M/M/c：需要排队的概率 / probability of waiting |
 | ★ `predict_wait(arrivals, avg_charge_min, working_chargers)` | 到达量 → 预计等待分钟 / arrivals → expected wait (min) |
-| ★ `service_capacity(avg_charge_min, working_chargers)` | 每个时段能服务的车数 = 可用桩数 × 30 ÷ 平均充电时长 / sessions the working chargers can serve per slot |
-| ★ `served_sessions(…)` / `unserved_sessions(…)` | 能服务 / 服务不了的预测车数（按容量算，不看等待时间）/ forecast sessions served / not served, from capacity, not from the wait（v0.6，取代 `lost_sessions` / replaces `lost_sessions`） |
+| ★ `served_by_occupancy(arrivals, avg_charge_min, working_chargers, earlier)` | 每个时段能服务的车数：有空桩才能充，充上后占用一个平均充电时长 / sessions served per slot: a car needs a free charger and then holds it for the charge time（v0.9） |
+| （已删除 removed in v0.9）`served_sessions` / `unserved_sessions` | 由上面的占用规则取代 / replaced by the occupancy rule above |
 
 **`app/services/classifier.py` — 问题分类 / Issue classification**
 
@@ -216,6 +216,7 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 - [x] 饼图数据 `GET /api/reports/categories`：各类投诉的数量和百分比 / pie chart data: count and percentage of complaints per category — **已完成 Done**
 - [x] v0.6：风险收入改按容量计算（预测到达量超过可用桩容量的部分 = 预计服务不了的车次），去掉"等 45 分钟就离开"的假设和 `max_tolerable_wait_min` / v0.6: revenue at risk now comes from capacity (forecast arrivals above what the working chargers can serve = estimated unserved sessions); the "drivers leave after 45 minutes" assumption and `max_tolerable_wait_min` are removed — **已完成 Done**
 - [x] v0.6：新排序：安全故障 → 按风险收入 → 使用率低；去掉 `site_issue`（车位被占或脏的投诉只进饼图）/ v0.6: new ranking: safety → revenue at risk → underused; `site_issue` removed (blocked or dirty bay complaints only count in the pie chart) — **已完成 Done**
+- [x] v0.8 / v0.9：充电桩日志 `GET /api/chargers/{id}/events`；what-if 等待时间改用平均值；风险收入改按占用规则（所有桩都被占用时到达的车才算服务不了）/ charger log endpoint; what-if wait is the average wait; revenue at risk follows the occupancy rule (a car is unserved only when every charger is busy) — **已完成 Done**（在 `final` 分支，待合并 / on `final`, to be merged）
 - [x] v0.7：前端不再需要样例数据：`GET /api/stations/{id}/chargers`（站内充电桩列表）、`GET /api/overview?time=`（真实的电量、在线车辆、可用率）、`meta.backtest_weeks`（可选回测周）/ v0.7: the frontend no longer needs sample data: charger list per station, real overview totals, selectable backtest weeks — **已完成 Done**
 - [x] 后端已部署到 Render / backend deployed on Render — **已完成 Done**（推送后才会更新到最新代码 / it updates to the latest code after a push）
 - [ ] （可选）`app/firebase/`：`actions_status` 读写 + `PATCH /api/actions/{id}/status` / (optional) Firestore action status

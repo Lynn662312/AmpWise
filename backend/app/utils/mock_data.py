@@ -94,6 +94,7 @@ ADVICE: dict[str, Any] = {
 WHATIF: dict[str, Any] = {
     "before_wait_min": 55.0, "after_wait_min": 24.0,
     "before_revenue_rm": 6100.00, "after_revenue_rm": 8400.00,
+    "before_at_risk_rm": 2300.00, "after_at_risk_rm": 0.00,
     "summary": "Fixing Charger 1 now cuts Friday's peak wait from 55 to 24 minutes and protects about RM 2,300.",
 }
 

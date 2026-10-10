@@ -41,6 +41,9 @@ def _compare(
         "after_wait_min": after["avg_wait_min"],
         "before_revenue_rm": round(before_revenue, 2),
         "after_revenue_rm": round(after_revenue, 2),
+        # The clearer pair to show: the two totals above are nearly equal for most actions.
+        "before_at_risk_rm": round(before["unserved"] * rm_per_session, 2),
+        "after_at_risk_rm": round(after["unserved"] * rm_per_session, 2),
         "summary": summary,
     }
 

@@ -4,7 +4,7 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.8 · 2026-10-11
+Version: v0.9 · 2026-10-11
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
@@ -17,6 +17,11 @@ Version: v0.8 · 2026-10-11
 > - `rm_at_risk`, what-if revenue and `rm_protected` are now based on **estimated unserved sessions**: forecast demand above what the working chargers can serve. See "Estimated revenue at risk" in section 4.
 > - Waiting times (`predicted_wait_min`, `wait_min`, wait levels, congestion) are unchanged and still come from the queueing model.
 > - The action list has a new sort order, and the issue type `site_issue` is removed.
+>
+> **v0.9 — a car is unserved only when every charger is busy.**
+> - Sessions served and unserved now follow the chargers' occupancy: an arriving car is served when a charger is free, and then holds it for the charge time. The v0.6 rule looked at each half hour on its own, which is wrong when a charge lasts two to four hours.
+> - `rm_at_risk`, what-if revenue and `rm_protected` keep their names and meaning; their numbers change.
+> - `WhatIfResult` gains `before_at_risk_rm` and `after_at_risk_rm`, so a page can show the money at risk before and after an action.
 >
 > **v0.8 — proof for charger actions, and what-if waits that move.**
 > - `GET /api/chargers/{charger_id}/events`: the charger's log (what its sensors reported and what drivers wrote), so a page can show why it is flagged.
@@ -182,8 +187,10 @@ interface WhatIfRequest {
 interface WhatIfResult {
   before_wait_min: number;         // v0.8: average wait per arriving car over the next 72 hours
   after_wait_min: number;
-  before_revenue_rm: number;       // v0.6: sessions served over the next 72 hours × rm_per_session
+  before_revenue_rm: number;       // sessions served over the next 72 hours × rm_per_session
   after_revenue_rm: number;
+  before_at_risk_rm: number;       // v0.9: estimated unserved sessions over the next 72 hours × rm_per_session
+  after_at_risk_rm: number;
   summary: string;
 }
 
@@ -306,17 +313,19 @@ Driver reports on a charger the sensors already flag do not create a second acti
 
 v0.6: `site_issue` is removed. Complaints about a blocked or dirty bay no longer create an action; they are counted only in `/api/reports/categories`.
 
-#### Estimated revenue at risk (v0.6)
+#### Estimated revenue at risk (v0.9)
 
-Nothing is inferred from how long drivers wait. For each 30-minute forecast slot:
+Nothing is inferred from how long drivers wait. The forecast is walked through slot by slot:
 
 ```
-capacity          = working_chargers × 30 ÷ avg_charge_min
-served_sessions   = min(arrivals, capacity)
-unserved_sessions = max(0, arrivals − capacity)
+busy chargers     = sessions that started within the last avg_charge_min and are still charging
+served_sessions   = min(arrivals, working_chargers − busy chargers)
+unserved_sessions = arrivals − served_sessions
 ```
 
-`rm_at_risk` sums this over the next 72 hours (fractions of a session are fine, because these are forecasts):
+So a car is unserved only when it arrives and every working charger is busy. A served car holds its charger for `avg_charge_min`. The cars forecast just before the first slot are counted as still charging. Fractions of a session are fine, because these are forecasts.
+
+`rm_at_risk` sums this over the next 72 hours:
 
 | Issue | Sessions at risk | `rm_at_risk` |
 | --- | --- | --- |
@@ -326,6 +335,8 @@ unserved_sessions = max(0, arrivals − capacity)
 | `underused` | — | 0 |
 
 These are estimates of sessions the station cannot serve, not observed customers who left. In text, call them "estimated unserved sessions", "sessions at risk" and "estimated revenue at risk".
+
+Waiting times are not part of this: they still come from the queueing model, which looks at each half hour on its own and so overstates the wait in a short burst. A station can therefore show a long wait and no unserved sessions.
 
 ```json
 [{
@@ -407,6 +418,7 @@ Body: `WhatIfRequest` → Response `200`: `WhatIfResult`
 {
   "before_wait_min": 55.0, "after_wait_min": 24.0,
   "before_revenue_rm": 6100.00, "after_revenue_rm": 8400.00,
+  "before_at_risk_rm": 2300.00, "after_at_risk_rm": 0.00,
   "summary": "Fixing Charger 1 now cuts Friday's peak wait from 55 to 24 minutes and protects about RM 2,300."
 }
 ```
@@ -415,7 +427,9 @@ The `discount` scenario is not available: the backend answers `400 bad_request`,
 
 v0.8: `before_wait_min` and `after_wait_min` are the average wait per arriving car over the next 72 hours (each slot's wait weighted by its arrivals), so a change in capacity shows even when the busiest slot stays over capacity.
 
-v0.6: revenue = sessions served over the next 72 hours × `rm_per_session`, with the same capacity formula as `rm_at_risk`. `fix_now` compares the current working chargers with one more; `add_chargers` compares them with `n_chargers` more. The wait values still come from the queueing model.
+v0.9: `before_at_risk_rm` and `after_at_risk_rm` are the estimated unserved sessions over the next 72 hours × `rm_per_session`. They are the clearer pair to chart: the two revenue totals are nearly equal for most actions, because most sessions are served either way.
+
+v0.6: revenue = sessions served over the next 72 hours × `rm_per_session`, with the same occupancy rule as `rm_at_risk`. `fix_now` compares the current working chargers with one more; `add_chargers` compares them with `n_chargers` more. The wait values still come from the queueing model.
 
 ### ★ GET `/api/backtest?week=`
 
@@ -561,6 +575,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-11 | v0.9 served and unserved sessions follow charger occupancy (a car is unserved only when every charger is busy), replacing the per-half-hour capacity rule of v0.6; `WhatIfResult` gains `before_at_risk_rm` and `after_at_risk_rm` | |
 | 2026-10-11 | v0.8 new `GET /api/chargers/{charger_id}/events` and `charger_events.parquet`; what-if wait fields are now the average wait over 72 hours, not the peak | |
 | 2026-10-11 | v0.7 new `GET /api/stations/{station_id}/chargers`; `GET /api/overview` now takes `time` and returns real totals (`energy.parquet`, `sessions.parquet`); new `meta.backtest_weeks`, and `/api/backtest?week=` uses it; `discount` what-if marked not available | |
 | 2026-10-11 | v0.6 money from capacity: `rm_at_risk`, what-if revenue and `rm_protected` use estimated unserved sessions (demand above charger capacity); `max_tolerable_wait_min` removed from `Meta.assumptions` and `params.json`; new action sort order (safety, then everything by `rm_at_risk`, then `underused`); issue type `site_issue` and `user_reports.issue_type` removed | |

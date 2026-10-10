@@ -2,10 +2,12 @@
 
 Two separate questions, answered separately:
 - How long is the queue?         predict_wait, shown on the dashboard and used to spot congestion.
-- How many sessions get served?  service_capacity, served_sessions, unserved_sessions: used for money.
+- How many sessions get served?  served_by_occupancy, used for money: a car is served when a charger
+                                 is free, and then holds it for the charge time.
 Money is never worked out from how long drivers wait.
 """
 
+from collections.abc import Sequence
 from math import factorial
 
 SLOT_MIN = 30
@@ -45,18 +47,25 @@ def predict_wait(arrivals: float, avg_charge_min: float, working_chargers: int) 
     return round(min(wait, MAX_WAIT_MIN), 1)
 
 
-def service_capacity(avg_charge_min: float, working_chargers: int, slot_minutes: int = SLOT_MIN) -> float:
-    """Sessions the working chargers can serve in one slot: chargers x slot length / charge time."""
-    if working_chargers <= 0 or avg_charge_min <= 0:
-        return 0.0
-    return working_chargers * slot_minutes / avg_charge_min
+def served_by_occupancy(
+    arrivals: Sequence[float], avg_charge_min: float, working_chargers: int, earlier: Sequence[float] = ()
+) -> list[float]:
+    """Sessions served in each slot. A car is served when a charger is free, then holds it for the charge time.
 
-
-def served_sessions(arrivals: float, avg_charge_min: float, working_chargers: int) -> float:
-    """Forecast arrivals the chargers can serve in one slot. A fraction is fine: it is a forecast."""
-    return min(max(arrivals, 0.0), service_capacity(avg_charge_min, working_chargers))
-
-
-def unserved_sessions(arrivals: float, avg_charge_min: float, working_chargers: int) -> float:
-    """Forecast arrivals above capacity in one slot: an estimate, not observed customers who left."""
-    return max(0.0, arrivals - service_capacity(avg_charge_min, working_chargers))
+    What is not served (arrivals minus this) is an estimate, not observed customers who left.
+    `earlier` are the arrivals in the slots just before the first one: those cars may still be charging.
+    A session counts from the start of the slot it arrives in. Fractions are fine: these are forecasts.
+    """
+    if avg_charge_min <= 0:
+        return [max(a, 0.0) if working_chargers > 0 else 0.0 for a in arrivals]
+    length = avg_charge_min / SLOT_MIN  # slots one session holds a charger, the slot it starts in included
+    held = max(length - 1, 0.0)  # slots it still holds the charger after that first slot
+    whole, part = int(held), held - int(held)
+    turnover = max(1.0, 1 / length)  # a charge shorter than a slot lets one charger start several sessions in it
+    served: list[float] = []
+    for arriving in [*earlier, *arrivals]:
+        i = len(served)
+        # Chargers still held by the cars served in the slots before this one.
+        busy = sum(served[max(0, i - whole):i]) + (part * served[i - whole - 1] if i > whole else 0.0)
+        served.append(min(max(arriving, 0.0), max(0.0, working_chargers - busy) * turnover))
+    return served[len(earlier):]

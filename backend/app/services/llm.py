@@ -172,7 +172,7 @@ def fallback_advice(facts: dict[str, Any]) -> dict[str, Any]:
         "steps": FALLBACK_STEPS[action["issue_type"]],
         "caveats": [
             f"Revenue per session is an assumed {assumed['currency']} {assumed['rm_per_session']:.0f}",
-            "Sessions at risk are estimated from forecast demand above charger capacity, not observed customers",
+            "Sessions at risk are cars forecast to arrive when every charger is busy, not observed customers",
         ],
     }
 

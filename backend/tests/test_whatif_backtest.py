@@ -33,6 +33,10 @@ def test_fix_revenue_is_served_sessions_times_revenue_per_session(data: DataStor
     gained = result["after_revenue_rm"] - result["before_revenue_rm"]
     assert gained == pytest.approx((broken["unserved"] - repaired["unserved"]) * 35.0, abs=0.01)
     assert "estimated" in result["summary"]
+    # The money at risk (unserved sessions x price) is what the page charts: it drops after the repair.
+    assert result["before_at_risk_rm"] == round(broken["unserved"] * 35.0, 2)
+    assert result["after_at_risk_rm"] == round(repaired["unserved"] * 35.0, 2)
+    assert result["after_at_risk_rm"] < result["before_at_risk_rm"]
 
 
 def test_whatif_wait_is_the_average_wait_not_the_capped_peak(data: DataStore) -> None:

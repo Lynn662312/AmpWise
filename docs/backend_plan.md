@@ -12,30 +12,37 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 5 | What-if and backtest | Done |
 | 6 | Frontend integration (on ML's real data) | Done and live; walkthrough by a person still to do |
 | 7 | ML integration (Colab outputs) | Done |
-| 8 | Deploy, Firestore and optional extras | Live: backend on Render, frontend on Vercel, action status on Firestore; extras open |
+| 8 | Deploy, Firestore and optional extras | Done for the demo: backend on Render, frontend on Vercel, action status on Firestore. Optional extras open |
 
-## What is left (updated 2026-10-11, after the merge into `main`)
+## What is left (updated 2026-10-11, 4am, after contract v0.9)
 
-Live and current: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which now holds contract v0.6 and v0.7 (pull request #6) and the frontend's later dropdown fix (pull request #7).
+Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v0.7 and the action states saved in Firestore.
 
-Checked after the merge: the live API answers with the v0.7 fields (four demo times, twelve backtest weeks, real overview totals, charger lists), and six live pages were rendered and their text checked: overview, map, station detail, what-if, results and actions. No problem was found. 86 backend tests and 1 ML test pass on the same code.
+Not live yet, all on the branch `final`:
 
-Not yet committed (on the branch `final`, 2026-10-11): contract v0.8. It adds the charger log (`GET /api/chargers/{id}/events`, shown on the charger page with the reason and the sensor evidence), a "Why this station needs attention" card on the station page, and what-if waits that are the average wait, not the capped peak. 89 backend tests pass and the frontend type-checks and builds. `final` still merges into `main` without conflicts.
+- Committed and pushed (commit "update"): contract v0.8, with the charger log, the "why" cards on the charger and station pages, and what-if waits that move.
+- Not committed: contract v0.9. Money now follows charger occupancy (a car is unserved only when every charger is busy), the what-if page charts the money at risk and hides the waiting-time parts when the wait does not change, station issues with no session at risk are no longer listed, the README was checked, and both `.env.example` files are references.
 
-What remains, in order:
+On all of it: 93 backend tests and 1 ML test pass, the frontend type-checks and builds, and every endpoint was called on the real data.
 
-0. [ ] Fix `FIREBASE_CREDENTIALS` in the local `backend/.env`. The key is pasted over several lines, so the app reads only `{` and the local backend stops at start-up. Put the whole JSON on one line inside single quotes, or save it as a file and give its path. (Render is not affected.)
-1. [ ] Commit the v0.8 work and merge it into `main`. Then, before more new work: `git checkout main`, `git pull`, and a new branch.
-2. [ ] Walk every page once on the live site as a person: click through, run a what-if, open an action, change the week on the results page (Stage 6). The checks so far read the rendered text only.
-3. [x] "Assign / mark done" is switched on and works on the live site: the action state is stored in Firestore and the action list shows it (2026-10-11).
-3b. [ ] The action table and the action drawer still show a generic line per issue type ("Safety-related charger fault"), not the backend's `reason` sentence. The reason is now on the charger and station pages; adding it to the table or drawer is a small frontend change.
-4. [ ] Make a charger action marked done count as working again, as the contract says. Today a done action only leaves the list (Stage 8).
-5. [ ] Optional: saved what-if runs (`/api/scenarios`) and demo reset (`POST /api/demo/reset`) on Firestore, with the frontend buttons (Stage 8).
-6. [ ] Optional: the three overview buttons that do nothing ("Schedule report", "View all", "Last 7 days"); AI advice with a real key (Stage 4).
-7. [ ] Tidy the docs: the examples in `docs/api_contract.md` and the introduction of `docs/AGENTS.md` still describe the first Malaysian draft; `frontend/api-contract.txt` is an outdated copy.
-8. [ ] Run the full demo twice on the live site.
+Before the 9am submission, in order:
 
-Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger capacity; cleaned feedback reviewed; backtest numbers handed over; "same chargers" checked and not needed (Stage 7); everything merged and deployed.
+1. [ ] Commit the uncommitted work on `final` and push it.
+2. [ ] Open a pull request from `final` into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
+3. [ ] Open the live site and walk every page once by hand: overview, map, a station, a charger (look for "Why this charger is flagged"), actions, what-if (run one repair at JPL), results. The first call after a quiet period is slow, because the free server sleeps.
+4. [ ] Give the group the new backtest numbers (Stage 7, "Known limits"): the money figure changed with v0.9.
+
+After that, only if there is time:
+
+- The action table and drawer still show a generic line per issue type, not the backend's `reason` sentence (the charger and station pages show it).
+- Make a charger action marked done count as working again, as the contract says. Today "done" is saved and shown, but the station's numbers do not change.
+- Saved what-if runs (`/api/scenarios`) and demo reset (`POST /api/demo/reset`) on Firestore, with the frontend buttons.
+- The three overview buttons that do nothing ("Schedule report", "View all", "Last 7 days").
+- AI advice with a real key (Stage 4). Without it the advice uses templates.
+- Waiting times still look at each half hour on its own, so the wait at the morning rush is overstated; a station can show a long wait and no unserved sessions.
+- Tidy the docs: the examples in `docs/api_contract.md` and the introduction of `docs/AGENTS.md` still describe the first Malaysian draft; `frontend/api-contract.txt` is an outdated copy.
+
+Settled: ML integration; revenue per session USD 10; demo times and backtest week picked from the data by rule; site issues removed; money from charger occupancy; cleaned feedback reviewed; "same chargers" checked and not needed (Stage 7); contract v0.7 merged and deployed; assign / mark done working on the live site; local `backend/.env` fixed.
 
 ## How to run and test (any stage)
 
@@ -83,7 +90,7 @@ Known limits: `MOCK=0` returns a 500 until Stage 3. The backtest mock numbers ar
 
 In plain words: the maths that turns "cars arriving" into "minutes of waiting", plus fake data files in the same format ML will deliver.
 
-- [x] `app/services/queueing.py` — `erlang_c`, `predict_wait` for the queue; `service_capacity`, `served_sessions`, `unserved_sessions` for money (v0.6, replacing `lost_sessions`); handle zero working chargers and demand above capacity
+- [x] `app/services/queueing.py` — `erlang_c`, `predict_wait` for the queue; `served_by_occupancy` for money (v0.9: a car is served when a charger is free, and then holds it for the charge time)
 - [x] `tests/test_queueing.py` — known inputs give known waits
 - [x] `scripts/make_dummy_data.py` — writes `stations.parquet`, `forecasts.parquet`, `health.parquet`, `fault_labels.parquet`, `params.json` with the columns in contract section 5
 - [x] `app/services/data_loader.py` — loads those files once at startup (only when `MOCK=0`)
@@ -95,7 +102,7 @@ How to test: `pytest -v` shows 28 passed. `python -m scripts.make_dummy_data` wr
 Assumptions to confirm with the team:
 
 - When demand is at or above capacity the wait is reported as 120 minutes (the formula gives infinity).
-- Sessions a station cannot serve in one slot = forecast arrivals above capacity, where capacity = working chargers × 30 ÷ average charge time. Nothing is inferred from the waiting time (v0.6; the earlier "drivers leave after 45 minutes" assumption is removed).
+- A session is unserved when the car is forecast to arrive while every working charger is busy (v0.9). A served car holds its charger for the station's average charge time, counted from the start of its half hour. Nothing is inferred from the waiting time.
 - A station is `congestion` if the next 24 hours peak above 40 minutes, `chronic_undercapacity` if that happens even on normal demand with every charger working, and `underused` if it is under 10% busy.
 - Any charger that is not `healthy` counts as not working.
 - `evidence` in `health.parquet` is a list of strings per row.
@@ -124,12 +131,12 @@ A charger that drivers reported but whose sensors show no fault becomes a `user_
 
 Site issues were removed in v0.6. Complaints about a blocked or dirty bay no longer create an action; they are only counted in the pie chart.
 
-How money at risk is calculated (v0.6), per 30-minute forecast slot and summed over the next 72 hours:
+How money at risk is calculated (v0.9), walking through the forecast slot by slot over the next 72 hours:
 
-- capacity = working chargers × 30 ÷ average charge time; served = the smaller of arrivals and capacity; unserved = arrivals above capacity.
+- Busy chargers = the sessions that started within the last charge time and are still charging. Served = the smaller of the arrivals and the free chargers. Unserved = the rest.
 - Charger flagged by its sensors: `p_fault` × (unserved now − unserved with one more charger working) × `rm_per_session`.
 - Driver-reported charger with healthy sensors: (unserved with one charger fewer − unserved now) × `rm_per_session`.
-- Congestion or chronic undercapacity: unserved with every installed charger working × `rm_per_session`.
+- Congestion or chronic undercapacity: unserved with every installed charger working × `rm_per_session`. If that is zero the station is not listed: a queue in which every car is still served costs no session. It still shows on the map.
 - Underused: 0.
 
 These are estimated unserved sessions, not customers seen leaving. The reason sentence says "an estimated N sessions are at risk".
@@ -141,13 +148,13 @@ What needs storing: see the table in Stage 8. In short, nothing from the ML file
 Assumptions to confirm with the team:
 
 - `rm_at_risk` looks 72 hours ahead.
-- A broken charger costs nothing while the other chargers can still serve the whole forecast; it costs money only when demand is above the remaining capacity.
-- Station congestion that disappears once faulty chargers are fixed (peak wait back to 40 minutes or less with every charger working) is not listed separately.
-- Deadline = the first slot where forecast demand is above capacity; a safety fault's deadline is now. No deadline when demand stays within capacity.
+- A broken charger costs nothing while the other chargers are never all busy; it costs one session each time a car arrives and would have found only that charger free.
+- A congestion or capacity issue is listed only when sessions are at risk with every charger working. That also leaves out congestion that disappears once the faulty chargers are fixed.
+- Deadline = the first slot in which a car is forecast to find every charger busy; a safety fault's deadline is now. No deadline when that never happens.
 - Urgency: safety fault is `critical`; otherwise `high` from RM 1,000, `medium` from RM 200, else `low`.
 - `/api/meta` takes `time_range`, `assumptions` and `backtest_weeks` from the data, and the name, currency, holidays and demo times from `meta.json`, which the converter writes.
 
-## Stage 4 — AI advice — Built, needs a real key to finish
+## Stage 4 — AI advice — Built; optional, the app works without a key
 
 In plain words: the AI rewrites our facts into advice and steps. It never decides ranking or numbers.
 
@@ -155,8 +162,8 @@ In plain words: the AI rewrites our facts into advice and steps. It never decide
 - [x] `POST /api/actions/{id}/advice` — always 200; `source: "template"` when the AI fails
 - [x] `scripts/prewarm_advice.py` — calls the running server for every demo time, action and language
 - [x] `tests/test_llm.py` — cache, timeout fallback, invented numbers rejected, no key
-- [ ] Team picks the AI provider, then put its API key and model name in `backend/.env` and try it once; the real AI call has only been tested with a stand-in and with fake keys
-- [ ] Run `python -m scripts.prewarm_advice http://localhost:8000` before the demo, and again after every server restart
+- [ ] Optional: pick an AI provider, put its API key and model name in `backend/.env` (and in Render) and try it once. The real AI call has only been tested with a stand-in and with fake keys. Without a key the advice comes from the templates, which is how the live site runs now
+- [ ] Only with a key: run `python -m scripts.prewarm_advice http://localhost:8000` before the demo, and again after every server restart
 
 How to test: `pytest -v` shows 48 passed. Without a key the endpoint returns `source: "template"`, still 200. With a key it returns `source: "llm"`, and a second identical call returns `cached: true`.
 
@@ -184,7 +191,7 @@ How the backtest works (reworked for ML's real faults; assumptions to confirm wi
 
 - It replays one week. Without a choice that is the 7 days with the most chargers out of service, because that week has the most to test (the earliest such week on a tie): 3 to 9 Feb 2020 on the real data. `week` picks another one from `meta.backtest_weeks`: the default first, then every Monday-to-Sunday week inside the data (12 in all). An unknown `week` gives a 400.
 - Baseline is what really happened: each charger is down from the day its fault starts to the day it was really repaired (`end_date` in `fault_labels.parquet`, ML's `end`).
-- `rm_protected` = (baseline unserved sessions − our unserved sessions) × revenue per session, with the capacity formula from Stage 3 (v0.6). Queue minutes still come from the queueing model.
+- `rm_protected` = (baseline unserved sessions − our unserved sessions) × revenue per session, with the occupancy rule from Stage 3 (v0.9). Queue minutes still come from the queueing model.
 - Ours: a fault is known the day the sensors flag it, or on its second driver report on the charger during the fault. One technician repairs one known fault per day, in action-list order, and the charger works again the next day.
 - A fault we never notice still ends on its real repair day, so ours is never worse than the baseline.
 - Every real fault counts as "charger down", including the ones only drivers can see (damaged cable, blocked bay).
@@ -193,7 +200,11 @@ How the backtest works (reworked for ML's real faults; assumptions to confirm wi
 - Forecast error compares the model and "same slot last week" against `arrivals_actual`.
 - Precision and recall compare the chargers the sensors flagged with the chargers in `fault_labels.parquet`.
 
-What-if looks 72 hours ahead. Revenue = the sessions the chargers can serve (capacity formula) × revenue per session (v0.6). "Fix now" compares the working chargers with one more; "add chargers" compares them with the requested number more. The wait shown next to it is the average wait per arriving car over those 72 hours (v0.8). It was the peak wait before, which is the 120-minute cap or 0 on both sides in almost every real case, so the page always showed a difference of 0.
+What-if looks 72 hours ahead. Revenue = the sessions served (occupancy rule) × revenue per session. "Fix now" compares the working chargers with one more; "add chargers" compares them with the requested number more. The wait shown next to it is the average wait per arriving car over those 72 hours (v0.8); the page hides the waiting-time cards and chart when the action does not change it.
+
+The result also carries the money at risk before and after (`before_at_risk_rm`, `after_at_risk_rm`, v0.9), and the page charts that pair. The two revenue totals are nearly equal for most actions, because most sessions are served either way, so charting them looked like "nothing happens". Example, JPL on 4 Feb 2020: repairing charger 10 takes the money at risk from USD 35 to USD 13 and the revenue from USD 2,037 to USD 2,059; ten more chargers take the money at risk to 0.
+
+Why the money rule was changed on 2026-10-11 (v0.6 to v0.9): the v0.6 rule gave each half hour a fixed capacity (chargers × 30 ÷ charge time). With charges of two to four hours that is wrong twice. In a morning burst it called most arriving cars unserved although the chargers were empty, and it valued one charger at only 0.13 to 0.21 sessions per half hour. On JPL it reported 44.6 unserved sessions and a repair that recovered 0.9 of them. The occupancy rule reports 3.5 unserved and a repair that recovers 2.3. The totals at risk are smaller than before, because on this data few cars are really turned away.
 
 ## Stage 6 — Frontend integration (on ML's real data) — Done; walkthrough by a person still to do
 
@@ -229,11 +240,14 @@ What was hard-coded or not connected, and what was done about it (2026-10-11):
 | Action list order | (to check) | Already shows the API's rank by default |
 | Why a charger is flagged (v0.8, not merged yet) | Nothing: no reason sentence, no evidence list, no log | The charger page shows the backend's reason, the sensor evidence, and a 14-day log: fault messages, the reading before the fault (for example cable temperature against its usual value) and the drivers' own reports |
 | Why a station needs attention (v0.8, not merged yet) | Nothing | The station page lists its open actions with the reason and the money at risk for each |
-| What-if "Predicted waiting time" and "Waiting time difference" (v0.8, not merged yet) | Always 120 → 120 or 0 → 0, difference 0 | The average wait, which moves when capacity changes (JPL plus 10 chargers on 4 Feb: 59.1 → 50.0 minutes) |
+| What-if "Predicted waiting time" and "Waiting time difference" (v0.8, not merged yet) | Always 120 → 120 or 0 → 0, difference 0 | The average wait, which moves when capacity changes (JPL plus 10 chargers on 4 Feb: 59.1 → 50.0 minutes). When an action does not change the wait, the two cards and the chart are not shown |
+| What-if revenue chart (v0.9, not merged yet) | Two nearly equal revenue totals ("USD 145 → 150") | The money at risk before and after, which drops clearly when the action helps; no chart when nothing changes |
 
 Still open in the frontend:
 
-- [ ] Assign / mark done: the backend route now exists (Stage 8), but the frontend keeps it off while `VITE_ACTION_STATUS_ENABLED=false`. Set it to `true` in `frontend/.env` and in Vercel once Firestore is confirmed on Render
+- [x] Assign / mark done is on: `VITE_ACTION_STATUS_ENABLED=true` on Vercel, and the action list and drawer show the saved state (2026-10-11)
+- [ ] The action table and drawer show a generic line per issue type, not the backend's `reason` sentence (the charger and station pages show it since v0.8)
+- [x] Forecast checked on the live site (2026-10-11): every station returns every half-hour slot. Three things look empty and are normal. "Baseline" is the real number of arrivals in the same slot one week earlier, so it is 0 in most slots. The wait is 0 in most slots because three of the four garages are far below capacity. And near the end of the data (29 Feb 2020, afternoon) only a few slots are left to show
 - [ ] Saved what-if runs and demo reset are not wired, and the backend has no routes for them yet (Stage 8)
 - [ ] Three buttons on the overview page do nothing yet: "Schedule report", "View all", "Last 7 days"
 - [ ] `frontend/api-contract.txt` is an old copy of the contract (v0.4); it is marked as outdated at the top. Delete it or copy `docs/api_contract.md` again
@@ -281,9 +295,9 @@ What the real data shows:
 
 - Holidays are quiet. These are workplace garages, so demand peaks on weekday mornings around 7am and drops on holidays.
 - Capacity differs a lot: two garages have 54 and 24 chargers and almost never queue; South Wilson has 4; JPL has 52 but 222-minute sessions, so the model shows it over capacity at the morning peak.
-- With the capacity formula (v0.6) a broken charger costs money only where demand is above capacity, which here means JPL at the morning peak. Of the 40 charger-days with a sensor fault, 20 show money at risk, at most USD 15. Three things keep it small. The Caltech garages with 24 and 54 chargers are under 10% busy, so losing one charger changes nothing there. One charger serves only 0.13 to 0.19 sessions per half hour, because a charge takes two to four hours. And most faults are repaired within a day or two.
+- With the occupancy rule (v0.9) a broken charger costs money only when the station fills up, which here means JPL at the weekday morning rush. Of the 40 charger-days with a sensor fault, 9 show money at risk, at most USD 23. The Caltech garages with 24 and 54 chargers are under 10% busy and never fill, so losing one charger changes nothing there. And most faults are repaired within a day or two.
 - The different charger counts in ML's two deliveries (the forecast covers every charger, `acn_synth` a 20% sample) are not the cause. Checked on 2026-10-11 by scaling every station to its sensor chargers with demand scaled the same: money at risk for sensor faults over the three months is USD 171 against USD 160, and the backtest avoids 2.9 estimated unserved sessions against 2.6. So ML does not need to rebuild anything for this.
-- Over the 89 days checked at 7am, the list showed a sensor fault on 40 charger-days and a driver-reported charger on 162. With the v0.6 ranking the first item was a capacity or congestion issue (JPL or South Wilson) on 70 days, a driver-reported charger on 13 and a safety fault on 6.
+- Over the 89 days checked at 7am, the list showed a sensor fault on 40 charger-days and a driver-reported charger on 162. A station capacity or congestion issue was listed on 16 days (only when sessions are at risk, v0.9). The first item was a driver-reported charger on 59 days, a capacity or congestion issue on 13, a sensor fault on 8 and a safety fault on 6.
 
 Known limits:
 
@@ -291,8 +305,9 @@ Known limits:
 - After a sensor fault clears, the driver reports made during it still count for 7 days, so the charger can stay on the list as "Inspect charger" for a few days.
 - Power does not drop before a fault in this data (it follows how the cars charge), so the charger chart does not show a decline, and the reason for a `degraded` charger quotes the charger's own message instead of a power percentage.
 - The sentiment model only knows the wording in this data set. A comment in completely new words can be read wrongly, so it has to be re-run (and re-checked) when ML sends new feedback.
-- The capacity formula is a throughput estimate. Demand that cannot be served in one slot is counted as unserved there; it is not carried into the next slot, and a long session is not followed from slot to slot.
-- The backtest gain is small on this data. In its week (3 to 9 Feb 2020, nine real faults) it saves 412 queue minutes and protects USD 4 (0.4 estimated unserved sessions). Over the whole three months it is 653 of about 199,000 queue minutes, and 2.6 of 560 estimated unserved sessions (about USD 26). The reasons are the ones under "What the real data shows": quiet garages, long charges, and faults that are repaired within a day or two anyway. Of the 33 real faults we know 25 on the day they start and never notice 3.
+- The occupancy rule works on half-hour steps with the station's average charge time: every car is treated as charging for that average, and a car that finds every charger busy is counted as unserved, not as waiting for the next free one.
+- Waiting times still look at each half hour on its own, so the wait in a short burst is overstated (JPL reads 120 minutes at the morning rush). A station can show a long wait and no unserved sessions.
+- The backtest gain is small on this data. In its week (3 to 9 Feb 2020, nine real faults) it saves 412 queue minutes and protects USD 10 (1.0 estimated unserved session). Over the whole three months it saves 549 queue minutes, and 1.0 of 18.2 estimated unserved sessions out of about 8,490 forecast. The reasons are the ones under "What the real data shows": quiet garages, and faults that are repaired within a day or two anyway. Of the 33 real faults we know 25 on the day they start and never notice 3.
 - Backtest precision is 1.0 because the status comes from the charger's own fault message; recall is 0.8 because the sensors cannot see the faults only drivers report.
 
 Done:
@@ -300,7 +315,7 @@ Done:
 - [x] `scripts/convert_ml_outputs.py` — reads ML's files with ML's own column names, converts UTC to California time, takes charger count, power and charge time per station from `station_profile.csv`, and writes all the files the backend reads
 - [x] Sensor results, real faults and driver reports now come from `acn_synth/`; the placeholders are gone
 - [x] Station coordinates come from `acn_synth/stations.csv` (the average of each station's chargers)
-- [x] v0.6: money from charger capacity (estimated unserved sessions) for `rm_at_risk`, what-if revenue and `rm_protected`; `max_tolerable_wait_min` removed everywhere; new ranking (safety, then money at risk, then underused)
+- [x] v0.6: `max_tolerable_wait_min` removed everywhere; new ranking (safety, then money at risk, then underused). v0.9: money from charger occupancy (estimated unserved sessions) for `rm_at_risk`, what-if revenue and `rm_protected`
 - [x] v0.6: issue type `site_issue` (added in v0.5) removed again; blocked-bay and cleanliness complaints are counted in the pie chart only
 - [x] `scripts/check_data.py` — reports missing columns, unknown station or charger ids, slots that are not 30 minutes, unknown status values, and more sensor chargers than the station has
 - [x] Each station uses its own average charge time (`avg_charge_min` in `stations.parquet`)
@@ -328,9 +343,9 @@ Still open after Stage 7 (also in "What is left" at the top):
 - [x] `CORS_ORIGINS` on Render allows the Vercel address; `/api/health` answers on the live URL (checked 2026-10-11)
 - [x] Firebase: project `ampwise-portpulse-20261011` created, Firestore rules in `firebase/firestore.rules` (no client access), `app/firebase/client.py`, and `PATCH /api/actions/{id}/status` with tests. The route is live on Render
 - [x] `final` merged into `main` (pull request #6, 2026-10-11); Render and Vercel redeployed, and the live site shows contract v0.7
-- [ ] Check `FIREBASE_CREDENTIALS` in the Render dashboard. It cannot be read from outside; without it the status route answers 500 "Firestore is not configured"
-- [ ] Set `VITE_ACTION_STATUS_ENABLED=true` in Vercel (and in `frontend/.env`) to show assign / mark done
-- [ ] Not built: `POST /api/demo/reset` and `/api/scenarios`. Also, the contract says a charger action marked done counts as working again; today a done action only leaves the list
+- [x] `FIREBASE_CREDENTIALS` is set on Render: the live site saves and reloads action states (2026-10-11). To look at it: Render dashboard → service `portpulse-ampwise-api` → Environment; the key is listed there with its value hidden. If it were missing, clicking "Assigned" on the live site would fail with "Firestore is not configured"
+- [x] `VITE_ACTION_STATUS_ENABLED=true` in Vercel; assign / mark done is shown on the live site
+- [ ] Optional, not built: `POST /api/demo/reset` and `/api/scenarios`. Also optional: the contract says a charger action marked done counts as working again; today "done" is saved and shown but does not change the station's numbers
 - [ ] Run the full demo twice against the deployed backend
 
 Environment variables, all checked on 2026-10-11:
@@ -342,8 +357,8 @@ Environment variables, all checked on 2026-10-11:
 | Render | `LLM_API_KEY`, `LLM_MODEL` | Not set: advice uses the templates |
 | Vercel | `VITE_API_BASE_URL`, `VITE_DATA_MODE=api` | Set (the live site calls the Render API) |
 | Vercel | `VITE_ACTION_STATUS_ENABLED` | `true`: assign / mark done is shown on the live site |
-| `backend/.env` | all six | Present, but `FIREBASE_CREDENTIALS` is spread over several lines and cannot be read: fix it (see "What is left"). The two AI ones are empty on purpose |
-| `frontend/.env` | all three | Present; `VITE_ACTION_STATUS_ENABLED=false` |
+| `backend/.env` | all six | Present, but `FIREBASE_CREDENTIALS` is spread over several lines and cannot be read. Fix it with one of the two forms in `backend/.env.example`. The two AI ones are empty on purpose |
+| `frontend/.env` | all three | Present; points at the Render API. Set `VITE_ACTION_STATUS_ENABLED=true` here too to see assign / mark done locally |
 
 What is stored where. The frontend only ever calls the backend API, on a teammate's machine and when deployed:
 

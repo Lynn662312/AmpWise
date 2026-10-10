@@ -5,8 +5,8 @@ Ours:     a fault is known the day the sensors flag it, or on its second driver 
           repairs one known fault per day, in action-list order, and the charger works again the next day.
 A fault we never notice still ends on its real repair day, as in the baseline.
 
-Queue minutes come from the queueing model. Money comes from estimated unserved sessions: forecast
-demand above what the working chargers can serve.
+Queue minutes come from the queueing model. Money comes from estimated unserved sessions: cars
+forecast to arrive when every working charger is busy.
 """
 
 from datetime import date, timedelta
@@ -17,8 +17,8 @@ import pandas as pd
 from app.core.errors import ApiError, bad_request
 from app.services.classifier import charge_min
 from app.services.data_loader import DataStore
-from app.services.priority import MIN_REPORTS, build_action_list
-from app.services.queueing import predict_wait, unserved_sessions
+from app.services.priority import MIN_REPORTS, build_action_list, earlier_arrivals
+from app.services.queueing import predict_wait, served_by_occupancy
 
 WEEK_DAYS = 7
 
@@ -113,9 +113,14 @@ def _queues(data: DataStore, days: list[date], down_by_day: list[set[str]]) -> l
             n_working = station.n_chargers - sum(c.startswith(f"{station.station_id}_c") for c in down)
             today = data.forecasts[(data.forecasts["station_id"] == station.station_id) & (slot_days == day)]
             avg_charge_min = charge_min(data, station.station_id)
-            for arrivals in today["arrivals"]:
+            if today.empty:
+                continue
+            arrivals_today = list(today["arrivals"])
+            earlier = earlier_arrivals(data, station.station_id, today["slot_start"].iloc[0])
+            served = served_by_occupancy(arrivals_today, avg_charge_min, n_working, earlier)
+            unserved += sum(arrivals_today) - sum(served)
+            for arrivals in arrivals_today:
                 queue_minutes += arrivals * predict_wait(arrivals, avg_charge_min, n_working)
-                unserved += unserved_sessions(arrivals, avg_charge_min, n_working)
                 arrivals_total += arrivals
         results.append(
             {"date": day, "queue_minutes": queue_minutes, "unserved": unserved, "arrivals": arrivals_total}
