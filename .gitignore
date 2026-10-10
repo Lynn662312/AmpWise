@@ -35,6 +35,7 @@ pnpm-debug.log*
 node_modules/
 dist/
 dist-ssr/
+.vercel/
 *.local
 .vite/
 coverage/
