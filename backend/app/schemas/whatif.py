@@ -20,3 +20,15 @@ class WhatIfResult(BaseModel):
     before_at_risk_rm: float
     after_at_risk_rm: float
     summary: str
+
+
+class ScenarioCreate(BaseModel):
+    """One what-if run to save."""
+
+    name: str = Field(min_length=1, max_length=80)
+    request: WhatIfRequest
+    result: WhatIfResult
+
+
+class Scenario(ScenarioCreate):
+    id: str

@@ -138,14 +138,16 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
 
         if sensor_fault:
             # Sessions at risk = the sessions one more working charger would serve.
-            protected = current["unserved"] - outlook(data, slots, n_working + 1)["unserved"]
+            # A charger marked done already counts in n_working, so its action is valued without it.
+            down = outlook(data, slots, n_working - 1) if charger_id in data.repaired else current
+            fixed = current if charger_id in data.repaired else outlook(data, slots, n_working + 1)
             is_safety = health["status"] == ChargerStatus.safety_fault.value
             issues.append({
-                **current,
+                **down,
                 "issue_type": health["status"],
                 "charger_id": charger_id,
-                "sessions_at_risk": float(health["p_fault"]) * protected,
-                "deadline": time if is_safety else current["first_unserved"],
+                "sessions_at_risk": float(health["p_fault"]) * (down["unserved"] - fixed["unserved"]),
+                "deadline": time if is_safety else down["first_unserved"],
                 "evidence": health["evidence"],
                 "report_count": len(reports),
                 "first_report": reports.iloc[0].to_pydatetime() if len(reports) else None,

@@ -40,6 +40,9 @@ def recent_reports(data: DataStore, charger_id: str, time: datetime) -> pd.Serie
 
 
 def classify_charger(data: DataStore, charger_id: str, time: datetime) -> ChargerStatus:
+    """The charger's status for counting working chargers. One whose action is marked done is working again."""
+    if charger_id in data.repaired:
+        return ChargerStatus.healthy
     row = latest_health(data, charger_id, time)
     return ChargerStatus.healthy if row is None else ChargerStatus(row["status"])
 

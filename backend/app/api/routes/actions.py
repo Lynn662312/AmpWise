@@ -19,6 +19,18 @@ router = APIRouter(prefix="/actions", tags=["actions"])
 _recent_actions: dict[str, dict[str, Any]] = {}
 
 
+def charger_of(action_id: str) -> str | None:
+    """The charger an action id names ("degraded:stn_003:stn_003_c1"), or None for a station action."""
+    charger_id = action_id.rsplit(":", 1)[-1]
+    return None if charger_id == "-" else charger_id
+
+
+def forget_states() -> None:
+    """After a demo reset every action is open again."""
+    for action in _recent_actions.values():
+        action["state"] = "open"
+
+
 @router.get("", response_model=list[Action])
 def list_actions(
     time: datetime = Depends(sim_time),
@@ -43,6 +55,7 @@ def update_action_status(
     action_id: str,
     body: ActionStatusRequest,
     settings: Settings = Depends(get_settings),
+    data: DataStore | None = Depends(get_data),
     firestore: Any | None = Depends(get_firestore),
 ) -> dict[str, Any]:
     action = _recent_actions.get(action_id)
@@ -54,6 +67,12 @@ def update_action_status(
         raise ApiError(500, "Firestore is not configured")
     if firestore is not None:
         firebase_store.write_action_state(firestore, action_id, body.state)
+    # A charger action marked done counts as working again in later calls.
+    charger_id = charger_of(action_id)
+    if data is not None and charger_id:
+        data.repaired.discard(charger_id)
+        if body.state == "done":
+            data.repaired.add(charger_id)
     updated = {**action, "state": body.state}
     _recent_actions[action_id] = updated
     return updated
