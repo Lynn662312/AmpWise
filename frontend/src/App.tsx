@@ -9,6 +9,7 @@ import { EmergencyAlertDialog } from "@/features/notifications/components/Emerge
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { MetricCard } from "@/components/common/MetricCard"
+import { DataSourceBadge } from "@/components/common/DataSourceBadge"
 import { NetworkStatusCard } from "@/components/common/NetworkStatusCard"
 import { FeedbackPieCard } from "@/components/common/FeedbackPieCard"
 import { useTheme } from "@/theme/ThemeProvider"
@@ -27,14 +28,16 @@ import { useMapStations } from "@/features/map/hooks/useMapStations"
 import { PresentationMenu } from "@/features/demo/components/PresentationMenu"
 import { DemoStepControls } from "@/features/demo/components/DemoStepControls"
 import { useDemoMode } from "@/features/demo/context/DemoContext"
-import { getMockDashboardData, getMockStations } from "@/services/mockService"
+import { getMockStations } from "@/services/mockService"
 import { useSystemHealth } from "@/features/system/hooks/useSystemHealth"
 import { useReportCategories } from "@/features/reports/hooks/useReportCategories"
+import { useOverview } from "@/features/overview/hooks/useOverview"
 import { isApiMode } from "@/services/api-client"
 import { getTimeZone } from "@/lib/simulationConfig"
 import logo from "@/assets/logo.png"
 
 type DashboardStation = { name: string; area: string; status: string; ports: string; load: string; tone: string }
+type OverviewStation = { station_id: string; status: string; ports: string; load: string; tone: string }
 
 const navItems = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
@@ -96,6 +99,7 @@ function Dashboard() {
   const { data: actionData, isLoading: actionsLoading, isError: actionsError } = useActions()
   const { data: stationData, isLoading: stationsLoading, isError: stationsError } = useMapStations()
   const { data: reportData, isLoading: feedbackLoading, isError: feedbackError } = useReportCategories()
+  const { data: overviewData, isLoading: overviewLoading, isError: overviewError } = useOverview()
   const [selectedAlert, setSelectedAlert] = useState<Action | null>(null)
   const apiStations = stationData?.stations ?? []
   const stationSummary = stationsLoading || stationsError || !stationData ? {
@@ -109,24 +113,25 @@ function Dashboard() {
     total_chargers: apiStations.reduce((sum, { n_chargers }) => sum + (n_chargers ?? 0), 0),
     working_chargers: apiStations.reduce((sum, { n_working }) => sum + (n_working ?? 0), 0),
   }
-  const dashboardData = isApiMode ? {
-    energy_trend: [],
+  const overviewUnavailable = overviewLoading || overviewError || !overviewData
+  const dashboardData = {
+    energy_trend: overviewData?.energy_trend ?? [],
     overview_stations: [],
     summary: {
-      energy_delivered_kwh: null,
+      energy_delivered_kwh: overviewUnavailable ? null : overviewData.energy_delivered_kwh,
       active_stations: stationSummary.active_stations,
       total_stations: stationSummary.total_stations,
-      live_sessions: null,
-      network_uptime_pct: null,
-      weekly_energy_kwh: null,
+      live_sessions: overviewUnavailable ? null : overviewData.live_sessions,
+      network_uptime_pct: overviewUnavailable ? null : overviewData.network_uptime_pct,
+      weekly_energy_kwh: overviewUnavailable ? null : overviewData.energy_delivered_week_kwh,
     },
-  } : getMockDashboardData()
+  }
   const stationRecords = isApiMode ? apiStations : getMockStations(480)
-  const stations = dashboardData.overview_stations.map((item) => {
+  const stations = (dashboardData.overview_stations as OverviewStation[]).map((item) => {
     const station = stationRecords.find(({ id }) => id === item.station_id)
     return { ...item, name: station?.name ?? item.station_id, area: station?.location ?? "Location unavailable" }
   })
-  const trendData = dashboardData.energy_trend
+  const trendData = dashboardData.energy_trend.map(({ date, kwh }) => ({ day: date, energy: kwh }))
   const alerts = (actionData?.actions ?? []).filter(({ issue_type, state }) => state !== "done" && ["safety_fault", "degraded", "connector_fault", "user_reported"].includes(issue_type)).sort((a, b) => a.rank - b.rank).slice(0, 2)
   const stationAvailabilityDescription = isApiMode
     ? stationSummary.working_chargers === null || stationSummary.total_chargers === null ? "Station feed unavailable" : `${stationSummary.working_chargers} of ${stationSummary.total_chargers} chargers working`
@@ -134,14 +139,15 @@ function Dashboard() {
   const selectedDate = isReady ? new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: getTimeZone() }).format(new Date(selectedIsoTime)) : "Waiting for supported backend time"
   return <div className="space-y-8">
     <section className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-sm font-medium text-muted-foreground">{selectedDate}</p><h1 className="font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Good morning, user</h1><p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">Here’s your network pulse. Keep the charge moving.</p></div><Button variant="soft"><CalendarDays size={16} />Schedule report</Button></section>
+    <section className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">{overviewData && <DataSourceBadge mock={overviewData.data_source === "placeholder"} mockLabel="Backend placeholder data" liveLabel="Backend overview data" />}<span>{overviewUnavailable ? "Overview metrics unavailable" : "Overview metrics from the backend"}</span></section>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard icon={<Bolt size={20} />} label="Energy delivered" value={dashboardData.summary.energy_delivered_kwh} suffix=" kWh" description={isApiMode ? "Sessions API not available" : "vs. last week"} trailing={!isApiMode ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">+12.8%</span> : undefined} />
+      <MetricCard icon={<Bolt size={20} />} label="Energy delivered" value={dashboardData.summary.energy_delivered_kwh} loading={overviewLoading} suffix=" kWh" description={overviewError ? "Overview API unavailable" : "Current period"} />
       <MetricCard icon={<EvStationIcon size={20} />} label="Stations with working chargers" value={dashboardData.summary.active_stations} suffix={dashboardData.summary.total_stations === null ? undefined : ` / ${dashboardData.summary.total_stations}`} description={stationAvailabilityDescription} trailing={!isApiMode ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">75%</span> : undefined} />
-      <MetricCard icon={<PlugIcon width={20} height={20} />} label="Live sessions" value={dashboardData.summary.live_sessions} suffix=" cars" description={isApiMode ? "Sessions API not available" : "since 06:00 today"} trailing={!isApiMode ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">+8</span> : undefined} />
-      <MetricCard icon={<Gauge size={20} />} label="Network uptime" value={dashboardData.summary.network_uptime_pct} decimals={1} suffix="%" description={isApiMode ? "Network status API not available" : "last 30 days"} trailing={!isApiMode ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Healthy</span> : undefined} />
+      <MetricCard icon={<PlugIcon width={20} height={20} />} label="Live sessions" value={dashboardData.summary.live_sessions} loading={overviewLoading} suffix=" cars" description={overviewError ? "Overview API unavailable" : "Current period"} />
+      <MetricCard icon={<Gauge size={20} />} label="Network uptime" value={dashboardData.summary.network_uptime_pct} loading={overviewLoading} decimals={1} suffix="%" description={overviewError ? "Overview API unavailable" : "Current period"} />
     </section>
     <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
-      <Card className="min-h-[355px] p-5 sm:p-7"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">{dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : dashboardData.summary.weekly_energy_kwh.toLocaleString("en-US")}</h2><span className="mb-1 text-sm text-muted-foreground">{dashboardData.summary.weekly_energy_kwh === null ? "Sessions API not available" : "kWh this week"}</span></div></div><button className="rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">Last 7 days <ChevronRight className="ml-1 inline" size={14} /></button></div><div className="mt-8 h-48">{trendData.length ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={9} /><YAxis hide domain={[0, 90]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer> : <div className="grid h-full place-items-center rounded-2xl bg-muted text-xs text-muted-foreground">Energy session data unavailable.</div>}</div></Card>
+      <Card className="min-h-[355px] p-5 sm:p-7"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">{overviewLoading ? "Loading…" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : dashboardData.summary.weekly_energy_kwh.toLocaleString("en-US")}</h2><span className="mb-1 text-sm text-muted-foreground">{overviewError ? "Overview API unavailable" : dashboardData.summary.weekly_energy_kwh === null ? "Unavailable" : "kWh this week"}</span></div></div><button className="rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">Last 7 days <ChevronRight className="ml-1 inline" size={14} /></button></div><div className="mt-8 h-48">{overviewLoading ? <div className="h-full animate-pulse rounded-2xl bg-muted" /> : trendData.length ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={9} /><YAxis hide domain={[0, 90]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer> : <div className="grid h-full place-items-center rounded-2xl bg-muted text-xs text-muted-foreground">{overviewError ? "Overview energy data unavailable." : "No energy trend data available."}</div>}</div></Card>
       <NetworkStatusCard onlineStations={dashboardData.summary.active_stations} totalStations={dashboardData.summary.total_stations} uptime={dashboardData.summary.network_uptime_pct} alerts={alerts} alertsLoading={actionsLoading} alertsError={actionsError} stationDataLoading={stationsLoading} stationDataError={stationsError} onAlertSelect={setSelectedAlert} />
     </section>
     <section className="grid gap-5 xl:grid-cols-2"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Button variant="ghost" className="px-2 text-xs">View all <ChevronRight size={14} /></Button></div><div className="space-y-2">{stations.length ? stations.map((station) => <StationRow key={station.name} {...station} />) : <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Per-station session data is not available yet.</p>}</div></Card><FeedbackPieCard categories={reportData?.categories ?? []} loading={feedbackLoading} error={feedbackError} /></section>

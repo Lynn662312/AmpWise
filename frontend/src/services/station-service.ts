@@ -12,5 +12,5 @@ export async function fetchStations(timeMinutes: number, timeIso?: string, signa
 export async function fetchStationForecast(stationId: string, start: string, hours = 2, timeMinutes = 480, signal?: AbortSignal): Promise<StationForecast[]> {
   if (!isApiMode) return getMockStations(timeMinutes).find(({ id }) => id === stationId)?.forecast ?? []
   const slots = await fetchJson<ApiForecastSlot[]>(`/api/stations/${encodeURIComponent(stationId)}/forecast?start=${encodeURIComponent(start)}&hours=${encodeURIComponent(String(hours))}`, { signal })
-  return slots.map((slot) => ({ time: slot.slot_start, arrivals: slot.arrivals, predicted_wait_min: slot.wait_min, arrivals_baseline: slot.arrivals_baseline, level: slot.wait_min > 40 ? "high" : slot.wait_min >= 15 ? "moderate" : "low", is_festive: slot.is_festive }))
+  return slots.map((slot) => ({ time: slot.slot_start, arrivals: slot.arrivals, predicted_wait_min: slot.wait_min, arrivals_baseline: slot.arrivals_baseline, level: slot.wait_min == null ? "unavailable" : slot.wait_min > 40 ? "high" : slot.wait_min >= 15 ? "moderate" : "low", is_festive: slot.is_festive }))
 }

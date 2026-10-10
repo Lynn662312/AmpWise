@@ -34,7 +34,7 @@ export type ApiStation = {
   n_chargers: number
   n_working: number
   power_kw: number
-  predicted_wait_min: number
+  predicted_wait_min: number | null
   level: "green" | "amber" | "red"
   open_issue_count: number
 }
@@ -43,7 +43,7 @@ export type ApiForecastSlot = {
   slot_start: string
   arrivals: number
   arrivals_baseline: number
-  wait_min: number
+  wait_min: number | null
   is_festive: boolean
 }
 
@@ -77,4 +77,13 @@ export type ApiReportCategory = {
   category: string
   count: number
   percentage: number
+}
+
+export type ApiOverview = {
+  data_source: "placeholder" | "api"
+  energy_delivered_kwh: number
+  energy_delivered_week_kwh: number
+  live_sessions: number
+  network_uptime_pct: number
+  energy_trend: { date: string; kwh: number }[]
 }

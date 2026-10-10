@@ -208,3 +208,73 @@ Overview data gaps confirmed
   and state rather than inventing a latest timestamp.
 - Required proposals remain the sessions/uptime endpoints described above if
   those Overview metrics must be live rather than unavailable.
+
+Temporary Overview endpoint
+---------------------------
+
+Status: **BACKEND PLACEHOLDER — REPLACE WITH REAL IMPLEMENTATION**
+
+Problem:
+The Overview needs energy delivered, weekly energy, live sessions, historical
+uptime and an energy trend, but the current backend exposes no approved session
+or uptime source.
+
+Endpoint:
+`GET /api/overview`
+
+Response:
+`data_source`, `energy_delivered_kwh`, `energy_delivered_week_kwh`,
+`live_sessions`, `network_uptime_pct`, and `energy_trend[]` with `date` and
+`kwh`.
+
+Fixture:
+`backend/app/utils/placeholder_data.py`, validated by
+`backend/app/schemas/overview.py`.
+
+Frontend impact:
+Overview consumes this endpoint through
+`frontend/src/features/overview/hooks/useOverview.ts`. The UI shows a small
+backend placeholder indicator.
+
+Required replacement:
+Build an approved California/US aggregation service from real session and
+network-health data. Do not estimate kWh from charger power, estimate live
+sessions from charger counts, or derive historical uptime from current
+availability.
+
+Priority: Required before presenting these Overview metrics as live data.
+
+Acceptance criteria:
+- The response shape remains compatible.
+- `data_source` changes from `placeholder` to the agreed real-data value.
+- Energy trend dates are within the active California dataset range.
+- Uptime is historical and documented; live sessions are backed by real
+  session records.
+- The placeholder fixture can be removed without changing frontend components.
+
+Predicted waiting-time status
+-----------------------------
+
+Verified behavior:
+- `/api/stations?time=2020-02-25T07:00:00-08:00` returns station-specific
+  `predicted_wait_min` values: `0.0`, `0.0`, `0.0` and `120.0` for the four
+  California stations.
+- `/api/stations/{station_id}/forecast?start=2020-02-25T07:00:00-08:00&hours=24`
+  returns 48 station-specific slots. Some stations have future non-zero slots,
+  while the current slot can legitimately be zero under low demand.
+- The queueing service uses the existing M/M/c calculation and caps unstable
+  queues at 120 minutes. No frontend or backend fixture was used to inflate
+  waiting times.
+
+Frontend status:
+- Map cards, KPI averages, station detail popup and station forecast mapping
+  now preserve valid zero values and show `Prediction unavailable` only for
+  missing or invalid values.
+- The selected-station popup now requests the API forecast instead of relying
+  on the map list's empty forecast preview.
+
+Remaining backend clarification:
+- If the product requires sub-minute positive waits to remain visible instead
+  of rounding to one decimal minute, confirm the desired API precision and
+  response contract. Do not change the queueing formula or ML outputs without
+  backend-team approval.

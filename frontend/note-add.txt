@@ -56,7 +56,7 @@ Validation executed
 - `git diff --check`: passed.
 - Backend route decorators and schemas inspected.
 - Protected `backend/data/` and `ml/` files unchanged.
-- Backend `pytest -q`: passed, 68 tests.
+- Backend `pytest -q`: passed, 69 tests, including `/api/overview`.
 - Backend API route checks through TestClient: passed for health, meta,
   stations, forecast, charger health, actions, advice, what-if, backtest and
   report categories.
@@ -100,3 +100,42 @@ Overview cross-check
 - Energy, live sessions, historical uptime, weekly energy and station-session
   performance remain unavailable in API mode because no supporting backend
   endpoints or response fields exist. No fabricated chart values are used.
+
+Temporary Overview placeholder
+------------------------------
+
+| Endpoint | Frontend page | Status | Replacement needed |
+|---|---|---|---|
+| GET `/api/overview` | Overview/Home | BACKEND PLACEHOLDER — connected through `useOverview` and React Query | Replace fixture with approved California session, energy and uptime aggregation |
+
+- Fixture: `backend/app/utils/placeholder_data.py`.
+- Schema: `backend/app/schemas/overview.py`.
+- Frontend service: `frontend/src/services/overview-service.ts`.
+- The Overview page now consumes energy, weekly energy, live sessions, uptime
+  and energy trend values through FastAPI. Station counts and charger
+  availability still use real `/api/stations`; alerts still use real
+  `/api/actions`.
+- Placeholder status is visibly labelled `Backend placeholder data`.
+- Proposed contract addendum: `docs/api_contract-V2.md`.
+
+Predicted waiting-time audit
+----------------------------
+
+- The real `/api/stations?time=` response includes station-specific
+  `predicted_wait_min` values. At `2020-02-25T07:00:00-08:00`, the checked
+  response was `0.0`, `0.0`, `0.0` and `120.0` for `stn_001` through
+  `stn_004` respectively.
+- Forecast verification returned 48 station-specific 30-minute slots per
+  station. The first slot for `stn_001` was `0.26` arrivals and `0.0` minutes;
+  `stn_004` was `15.8` arrivals and `120.0` minutes.
+- Root cause of the visible zero values: the backend queueing calculation is
+  receiving low-load arrivals with large charger capacity and rounds expected
+  wait to one decimal minute. These are genuine zero-after-rounding outputs,
+  not a frontend `|| 0` fallback or a shared station value.
+- Frontend fixes: null/undefined/NaN waits now show `Prediction unavailable`,
+  valid zero remains `0 min predicted wait`, average-wait metrics exclude
+  invalid values, and the selected-station drawer fetches its real forecast
+  slots in API mode.
+- No ML datasets, parquet files, model artifacts or prediction outputs were
+  changed. The values remain backend-calculated estimates from the existing
+  queueing service and forecast rows.

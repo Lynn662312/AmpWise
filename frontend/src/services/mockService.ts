@@ -16,6 +16,7 @@ import sessionsData from "@/data/sessions.json"
 import reportCategoriesData from "@/data/feedback.json"
 import { regions, type RegionId } from "@/features/map/config/regions"
 import type { ApiMeta } from "@/types/api"
+import type { ApiOverview } from "@/types/api"
 
 type StationSeed = { id: string; name: string; region: string; lat: number; lon: number; location?: string; n_chargers?: number; n_working?: number; power_kw?: number }
 type ForecastProfile = { station_id: string; base_wait_min: number; time_amplitude_min: number; next_hour_offset_min: number; later_hour_offset_min: number; festive?: boolean }
@@ -144,6 +145,17 @@ export function getDemoScenarios(): readonly MockDemoScenario[] { return demoSce
 export function getMockSessions() { return sessionsData }
 export function getMockReportCategories() { return reportCategoriesData }
 export function getMockDashboardData(): MockDashboardData { return sessionsData }
+export function getMockOverview(): ApiOverview {
+  const dashboard = getMockDashboardData()
+  return {
+    data_source: "placeholder",
+    energy_delivered_kwh: dashboard.summary.energy_delivered_kwh,
+    energy_delivered_week_kwh: dashboard.summary.weekly_energy_kwh,
+    live_sessions: dashboard.summary.live_sessions,
+    network_uptime_pct: dashboard.summary.network_uptime_pct,
+    energy_trend: dashboard.energy_trend.map(({ day, energy }) => ({ date: day, kwh: energy })),
+  }
+}
 export function getStations(region?: RegionId, timeMinutes = 480) { return getMockStations(timeMinutes).filter((station) => !region || station.region === region) }
 export function getStationById(id: string, timeMinutes = 480) { return getMockStations(timeMinutes).find((station) => station.id === id) ?? null }
 export function getRegions() { return regions }
