@@ -1,0 +1,13 @@
+{
+  "energy_trend": [
+    { "day": "Mon", "energy": 31 },
+    { "day": "Tue", "energy": 46 },
+    { "day": "Wed", "energy": 40 },
+    { "day": "Thu", "energy": 62 },
+    { "day": "Fri", "energy": 56 },
+    { "day": "Sat", "energy": 78 },
+    { "day": "Sun", "energy": 71 }
+  ],
+  "overview_stations": [],
+  "summary": { "energy_delivered_kwh": 1284, "active_stations": 18, "total_stations": 24, "live_sessions": 42, "network_uptime_pct": 99.2, "weekly_energy_kwh": 8492 }
+}

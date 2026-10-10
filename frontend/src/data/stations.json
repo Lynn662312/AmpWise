@@ -1,0 +1,6 @@
+[
+  { "id": "California_Garage_01", "name": "California Garage 01", "region": "california", "lat": 34.134765, "lon": -118.127183 },
+  { "id": "S_Wilson_Garage_01", "name": "S Wilson Garage 01", "region": "california", "lat": 34.140269, "lon": -118.128354 },
+  { "id": "California_Garage_02", "name": "California Garage 02", "region": "california", "lat": 34.134765, "lon": -118.127183 },
+  { "id": "Arroyo_Garage_01", "name": "Arroyo Garage 01", "region": "california", "lat": 34.198841, "lon": -118.170402 }
+]

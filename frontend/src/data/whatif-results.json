@@ -1,0 +1,6 @@
+{
+  "fix_now": { "wait_improvement_min": 12, "revenue_per_min_rm": 7 },
+  "after_peak": { "wait_improvement_min": 4, "revenue_per_min_rm": 7 },
+  "add_chargers": { "wait_reduction_per_charger_min": 4, "revenue_per_charger_rm": 45 },
+  "discount": { "wait_reduction_per_discount_point_min": 0.5, "revenue_retention_factor": 0.35 }
+}

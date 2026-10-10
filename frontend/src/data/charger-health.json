@@ -1,0 +1,5 @@
+{
+  "working": { "actual_start": 0.96, "actual_step": 0, "fault_start": 0.08, "fault_step": 0 },
+  "degraded": { "actual_start": 0.72, "actual_step": -0.025, "fault_start": 0.72, "fault_step": -0.03 },
+  "offline": { "actual_start": 0.72, "actual_step": -0.025, "fault_start": 0.72, "fault_step": -0.03 }
+}
