@@ -3,7 +3,6 @@ import { List, MapPin, RefreshCw, Search, X } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
-import { AppSelect } from "@/components/common/AppSelect"
 import { AppTextField } from "@/components/common/AppTextField"
 import { useSimulatedTime } from "@/context/TimeContext"
 import { MapFilters } from "@/features/map/components/MapFilters"
@@ -12,10 +11,8 @@ import { StationDetailDrawer } from "@/features/map/components/StationDetailDraw
 import { StationList } from "@/features/map/components/StationList"
 import { useMapStations } from "@/features/map/hooks/useMapStations"
 import type { StationFilter } from "@/features/map/types"
-import { regions, type RegionId } from "@/features/map/config/regions"
 import { filterStations } from "@/features/map/utils/mapHelpers"
 import { cn } from "@/lib/utils"
-import { isApiMode } from "@/services/api-client"
 
 export function MapPage() {
   const { timeLabel } = useSimulatedTime()
@@ -23,37 +20,26 @@ export function MapPage() {
   const { data, isError, refetch, isFetching } = useMapStations()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<StationFilter>("all")
-  const [region, setRegion] = useState<RegionId>(isApiMode ? "malaysia" : "california")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showStationRail, setShowStationRail] = useState(false)
   const stations = data?.stations ?? []
-  const regionStations = useMemo(() => stations.filter((station) => station.region === region), [region, stations])
-  const filteredStations = useMemo(() => filterStations(regionStations, query, filter), [filter, query, regionStations])
-  const selectedStation = regionStations.find(({ id }) => id === selectedId) ?? null
-  const workingChargers = regionStations.reduce((sum, station) => sum + (station.n_working ?? 0), 0)
-  const hasOperationalData = regionStations.some((station) => station.n_working !== null)
-  const highCongestion = regionStations.filter(({ level }) => level === "high").length
-  const waitStations = regionStations.filter(({ predicted_wait_min }) => predicted_wait_min !== null)
+  const filteredStations = useMemo(() => filterStations(stations, query, filter), [filter, query, stations])
+  const selectedStation = stations.find(({ id }) => id === selectedId) ?? null
+  const workingChargers = stations.reduce((sum, station) => sum + (station.n_working ?? 0), 0)
+  const hasOperationalData = stations.some((station) => station.n_working !== null)
+  const highCongestion = stations.filter(({ level }) => level === "high").length
+  const waitStations = stations.filter(({ predicted_wait_min }) => predicted_wait_min !== null)
   const averageWait = waitStations.length ? Math.round(waitStations.reduce((sum, station) => sum + (station.predicted_wait_min ?? 0), 0) / waitStations.length) : 0
   const closeStation = useCallback((open: boolean) => { if (!open) setSelectedId(null) }, [])
   const handleFilterChange = useCallback((next: StationFilter) => {
     setFilter(next)
     setSelectedId((current) => {
-      const station = regionStations.find(({ id }) => id === current)
+      const station = stations.find(({ id }) => id === current)
       return station && next !== "all" && station.level !== next ? null : current
     })
-  }, [regionStations])
-
-  const handleRegionChange = useCallback((next: string) => {
-    if (!regions.some((item) => item.id === next)) return
-    setRegion(next as RegionId)
-    setSelectedId(null)
-    setFilter("all")
-  }, [])
+  }, [stations])
 
   useEffect(() => {
-    const requestedRegion = searchParams.get("region")
-    if (regions.some((item) => item.id === requestedRegion)) setRegion(requestedRegion as RegionId)
     const requestedStation = searchParams.get("station")
     if (requestedStation && stations.some(({ id }) => id === requestedStation)) setSelectedId(requestedStation)
   }, [searchParams, stations])
@@ -61,19 +47,18 @@ export function MapPage() {
   return <div className="space-y-4 pb-4">
     <section className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
       <div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><MapPin size={13} className="text-primary" /> {regions.find((item) => item.id === region)?.label} operations</div>
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><MapPin size={13} className="text-primary" /> California operations</div>
         <h1 className="mt-2 font-display text-[1.75rem] font-semibold leading-none tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Charging network <span className="text-primary">overview</span></h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Demand, availability and predicted congestion in one operational view.</p>
       </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
         <span className="hidden rounded-full bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground sm:inline-flex">{timeLabel}</span>
-        <AppSelect label="Region" size="sm" value={region} onValueChange={handleRegionChange} options={regions.map((item) => ({ value: item.id, label: item.label }))} className="w-[140px]" />
         <Button variant="soft" onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh station data"><RefreshCw className={cn(isFetching && "animate-spin")} size={15} /><span className="hidden sm:inline">Refresh</span></Button>
       </div>
     </section>
 
     <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold text-muted-foreground scrollbar-none">
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-success" /><AnimatedNumber value={regionStations.length} /> stations</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-success" /><AnimatedNumber value={stations.length} /> stations</span>
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-primary" />{hasOperationalData ? <AnimatedNumber value={workingChargers} /> : "Data unavailable"} working chargers</span>
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-warning" />{hasOperationalData ? <AnimatedNumber value={highCongestion} /> : "Data unavailable"} high congestion</span>
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-info" />{waitStations.length ? <AnimatedNumber value={averageWait} suffix=" min" /> : "Data unavailable"} average wait</span>
@@ -85,7 +70,7 @@ export function MapPage() {
           <AppTextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search stations" aria-label="Search stations" startIcon={<Search size={16} className="text-primary" />} endIcon={query ? <button type="button" onClick={() => setQuery("")} className="pointer-events-auto text-muted-foreground hover:text-foreground" aria-label="Clear search"><X size={15} /></button> : undefined} size="default" className="min-w-0 rounded-full bg-card/95 px-4 py-1.5 text-sm shadow-xl backdrop-blur sm:w-60" />
           <button type="button" onClick={() => setShowStationRail((open) => !open)} className="grid size-11 shrink-0 place-items-center rounded-full bg-card/95 text-primary shadow-xl backdrop-blur hover:bg-primary hover:text-primary-foreground lg:hidden" aria-label="Toggle station list" aria-pressed={showStationRail}><List size={18} /></button>
         </div>
-        <div className="absolute bottom-4 left-4 z-[500] hidden max-w-[calc(100%-2rem)] items-center gap-2 rounded-full bg-card/90 px-3 py-2 text-[11px] font-semibold text-muted-foreground shadow-lg backdrop-blur sm:flex sm:left-5 sm:bottom-5"><span className="size-2 rounded-full bg-accent" />KL–JB corridor · {timeLabel}</div>
+        <div className="absolute bottom-4 left-4 z-[500] hidden max-w-[calc(100%-2rem)] items-center gap-2 rounded-full bg-card/90 px-3 py-2 text-[11px] font-semibold text-muted-foreground shadow-lg backdrop-blur sm:flex sm:left-5 sm:bottom-5"><span className="size-2 rounded-full bg-accent" />California corridor · {timeLabel}</div>
         {isError ? <div className="grid h-full min-h-[min(66vh,650px)] place-items-center rounded-[2rem] bg-card p-8 text-center shadow-[0_20px_55px_color-mix(in_srgb,var(--primary)_7%,transparent)]"><div><p className="text-sm font-semibold">Charging data is unavailable</p><p className="mt-1 text-xs text-muted-foreground">Try refreshing the station feed.</p><Button className="mt-4" onClick={() => void refetch()}>Try again</Button></div></div> : <MapView stations={filteredStations} selectedId={selectedId} onSelect={setSelectedId} />}
         <StationDetailDrawer station={selectedStation} open={Boolean(selectedStation)} onOpenChange={closeStation} />
       </div>

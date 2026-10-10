@@ -10,7 +10,7 @@ export type DemoScenario = {
   icon: typeof CalendarDays
   time: number
   stationId: string
-  chargerId: string
+  chargerId: string | null
   route: string
 }
 

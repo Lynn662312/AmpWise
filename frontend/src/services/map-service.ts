@@ -19,7 +19,7 @@ export type MapStationInput = {
 export async function getMapData(timeMinutes: number, timeIso?: string, signal?: AbortSignal): Promise<{ stations: ChargingStation[]; source: "api" | "mock"; corridor: string }> {
   if (!isApiMode) return { stations: getMockStations(timeMinutes), source: "mock", corridor: getMapSeedData().corridor }
   const stations = await fetchJson<ApiStation[]>(`/api/stations?time=${encodeURIComponent(timeIso ?? String(timeMinutes))}`, { signal })
-  return { stations: stations.map((station) => ({ ...station, region: "malaysia", location: null, level: station.level === "green" ? "low" : station.level === "amber" ? "moderate" : "high", forecast: [] })), source: "api", corridor: "Charging network" }
+  return { stations: stations.map((station) => ({ ...station, region: "", location: null, level: station.level === "green" ? "low" : station.level === "amber" ? "moderate" : "high", forecast: [] })), source: "api", corridor: "Charging network" }
 }
 
 export async function postMapData(station: MapStationInput): Promise<{ station: MapStationInput; source: "api" | "local" }> {
