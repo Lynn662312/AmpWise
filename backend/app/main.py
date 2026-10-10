@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import actions, backtest, chargers, meta, overview, reports, stations, whatif
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
+from app.firebase.client import initialize_firestore
 from app.services import data_loader
 
 settings = get_settings()
@@ -13,6 +14,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.firestore = initialize_firestore(settings.firebase_credentials)
     # ML files are read once and kept in memory; mock mode needs no files.
     if not settings.mock:
         app.state.data = data_loader.load_all(settings.data_dir)
