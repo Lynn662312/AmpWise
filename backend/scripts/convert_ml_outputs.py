@@ -17,14 +17,14 @@ from pathlib import Path
 import pandas as pd
 
 from app.core.config import get_settings
-from scripts.make_dummy_data import FAULTS, fault_labels, health_rows
+from scripts.make_dummy_data import FAULTS, fault_labels, health_rows, report_rows
 
 LOCAL_TZ = "America/Los_Angeles"  # the ACN stations are in California
 CURRENCY = "USD"
 NETWORK_NAME = "ACN California (Caltech / JPL)"
 
-# PLACEHOLDER: revenue per session and tolerable wait are team assumptions;
-# avg_charge_min should be the value ML used for its wait columns.
+# PLACEHOLDER: team assumptions. The backend calculates its own waits from avg_charge_min;
+# ML's wait_min columns are not used.
 PARAMS = {"avg_charge_min": 38, "rm_per_session": 10.0, "max_tolerable_wait_min": 45}
 
 # PLACEHOLDER station details, keyed by the value in ML's "station" column.
@@ -48,7 +48,8 @@ PLACEHOLDER_FAULT_DAYS = (20, 22, 21)
 
 
 def _forecasts(raw: pd.DataFrame, station_ids: dict[str, str], multiplier: float) -> pd.DataFrame:
-    is_festive = raw["is_holiday"].astype(bool) | raw["near_holiday"].astype(bool)
+    # Only the public holiday itself is festive; ML's near_holiday column is not used.
+    is_festive = raw["is_holiday"].astype(bool)
     # ML's "pred" has no festive effect; the demo multiplies festive slots by the assumed factor.
     forecast = raw["pred"].clip(lower=0) * is_festive.map({True: multiplier, False: 1.0})
     return pd.DataFrame({
@@ -57,7 +58,9 @@ def _forecasts(raw: pd.DataFrame, station_ids: dict[str, str], multiplier: float
         "arrivals": forecast.round(2),
         "arrivals_baseline": raw["baseline_last_week"].fillna(0).round(2),
         "is_festive": is_festive,
-        "arrivals_actual": raw["arrivals"],  # kept for the backtest
+        # Kept for the backtest: what really happened, and ML's prediction before the multiplier.
+        "arrivals_actual": raw["arrivals"],
+        "arrivals_model": raw["pred"].clip(lower=0).round(2),
     })
 
 
@@ -90,6 +93,10 @@ def _festive_periods(forecasts: pd.DataFrame) -> list[dict]:
 
 def _local(day: date, clock: str) -> str:
     return pd.Timestamp(f"{day} {clock}", tz=LOCAL_TZ).isoformat()
+
+
+def _report_time(day: date, clock: str) -> pd.Timestamp:
+    return pd.Timestamp(f"{day} {clock}", tz=LOCAL_TZ)
 
 
 def _demo_times(forecasts: pd.DataFrame, periods: list[dict]) -> list[dict]:
@@ -128,10 +135,18 @@ def convert(raw_dir: str, out_dir: str) -> None:
         in zip(stations, PLACEHOLDER_FAULT_DAYS, FAULTS.values())
     }
 
+    # PLACEHOLDER driver reports until ML delivers them: each fault is reported two days after
+    # it starts, and one charger with healthy sensors is reported three times.
+    undetected = f"{stations[0]['station_id']}_c2"
+    undetected_day = first_day + timedelta(days=PLACEHOLDER_FAULT_DAYS[0])
+    reports = {c: [_report_time(fault[1] + timedelta(days=2), "10:00")] for c, fault in faults.items()}
+    reports[undetected] = [_report_time(undetected_day + timedelta(days=1), clock) for clock in ("09:00", "13:00", "18:00")]
+
     forecasts.to_parquet(out / "forecasts.parquet", index=False)
     pd.DataFrame(stations).to_parquet(out / "stations.parquet", index=False)
     health_rows(stations, first_day, n_days, faults, random.Random(42)).to_parquet(out / "health.parquet", index=False)
-    fault_labels(faults).to_parquet(out / "fault_labels.parquet", index=False)
+    fault_labels({**faults, undetected: ("undetected", undetected_day)}).to_parquet(out / "fault_labels.parquet", index=False)
+    report_rows(reports).to_parquet(out / "user_reports.parquet", index=False)
     (out / "params.json").write_text(json.dumps(PARAMS, indent=2), encoding="utf-8")
     meta = {
         "corridor_name": NETWORK_NAME,

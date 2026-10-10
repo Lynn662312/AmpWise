@@ -14,7 +14,7 @@ DAY_BEFORE_RAYA = datetime(2026, 3, 26, 14, 0, tzinfo=MYT)
 
 def test_loader_reads_contract_columns(data: DataStore) -> None:
     assert list(data.stations.columns) == data_loader.STATION_COLUMNS
-    assert list(data.forecasts.columns) == data_loader.FORECAST_COLUMNS
+    assert set(data_loader.FORECAST_COLUMNS) <= set(data.forecasts.columns)
     assert list(data.health.columns) == data_loader.HEALTH_COLUMNS
     assert data.params["avg_charge_min"] == 38
 

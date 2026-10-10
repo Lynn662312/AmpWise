@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from app.schemas import ChargerStatus, IssueType
-from app.services.classifier import classify_station, latest_health, working_chargers
+from app.services.classifier import classify_station, latest_health, recent_reports, working_chargers
 from app.services.data_loader import DataStore
 from app.services.explain import make_reason
 from app.services.queueing import lost_sessions, predict_wait
@@ -14,11 +14,13 @@ from app.services.queueing import lost_sessions, predict_wait
 HORIZON_HOURS = 72  # how far ahead rm_at_risk looks
 HIGH_RM = 1000.0  # assumption: urgency limits
 MEDIUM_RM = 200.0
+MIN_REPORTS = 2  # assumption: one driver report alone is not enough to send a technician
 
 RECOMMENDED_ACTIONS: dict[str, str] = {
     "safety_fault": "Take offline and inspect",
     "degraded": "Schedule maintenance",
     "connector_fault": "Replace connector",
+    "user_reported": "Inspect charger",
     "congestion": "Redirect drivers",
     "chronic_undercapacity": "Add chargers",
     "underused": "Review pricing or location",
@@ -57,9 +59,19 @@ def recommend_action(issue_type: str) -> str:
     return RECOMMENDED_ACTIONS[issue_type]
 
 
-def score_issue(issue: dict[str, Any]) -> tuple[int, float]:
-    """Sort key: safety faults first, then the most ringgit at risk."""
-    return (0 if issue["issue_type"] == "safety_fault" else 1, -issue["rm_at_risk"])
+def score_issue(issue: dict[str, Any]) -> tuple[int, int, float]:
+    """Sort key, lowest first.
+
+    1. Safety faults.
+    2. Charger maintenance (found by sensors or reported by drivers): most driver reports first,
+       because reports show how many people the fault is affecting. Ties: most money at risk first.
+    3. Station problems (congestion, capacity, underuse): most money at risk first.
+    """
+    if issue["issue_type"] == "safety_fault":
+        return (0, 0, 0.0)
+    if issue["charger_id"]:
+        return (1, -issue["report_count"], -issue["rm_at_risk"])
+    return (2, 0, -issue["rm_at_risk"])
 
 
 def _urgency(issue: dict[str, Any]) -> str:
@@ -81,19 +93,36 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
     charger_ids = data.health.loc[data.health["station_id"] == station.station_id, "charger_id"].unique()
     for charger_id in charger_ids:
         health = latest_health(data, charger_id, time)
-        if health is None or health["status"] == ChargerStatus.healthy.value:
-            continue
-        saved = current["lost"] - outlook(data, slots, n_working + 1)["lost"]
-        is_safety = health["status"] == ChargerStatus.safety_fault.value
-        issues.append({
-            **current,
-            "issue_type": health["status"],
-            "charger_id": charger_id,
-            "rm_at_risk": float(health["p_fault"]) * saved * rm_per_session,
-            "deadline": time if is_safety else current["first_loss"],
-            "power_ratio": float(health["power_ratio"]),
-            "evidence": health["evidence"],
-        })
+        reports = recent_reports(data, charger_id, time)
+        sensor_fault = health is not None and health["status"] != ChargerStatus.healthy.value
+
+        if sensor_fault:
+            saved = current["lost"] - outlook(data, slots, n_working + 1)["lost"]
+            is_safety = health["status"] == ChargerStatus.safety_fault.value
+            issues.append({
+                **current,
+                "issue_type": health["status"],
+                "charger_id": charger_id,
+                "rm_at_risk": float(health["p_fault"]) * saved * rm_per_session,
+                "deadline": time if is_safety else current["first_loss"],
+                "power_ratio": float(health["power_ratio"]),
+                "evidence": health["evidence"],
+                "report_count": len(reports),
+                "first_report": reports.iloc[0].to_pydatetime() if len(reports) else None,
+            })
+        elif len(reports) >= MIN_REPORTS:
+            # The sensors see nothing, but drivers keep reporting it.
+            # Value = sessions lost if the reports are right and the charger is really down.
+            if_down = outlook(data, slots, n_working - 1)
+            issues.append({
+                **if_down,
+                "issue_type": IssueType.user_reported.value,
+                "charger_id": charger_id,
+                "rm_at_risk": (if_down["lost"] - current["lost"]) * rm_per_session,
+                "deadline": if_down["first_loss"],
+                "report_count": len(reports),
+                "first_report": reports.iloc[0].to_pydatetime(),
+            })
 
     # Station problems: value = sessions still lost with every charger working.
     station_issue = classify_station(data, station.station_id, time)
@@ -108,6 +137,8 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
                 "charger_id": None,
                 "rm_at_risk": rm,
                 "deadline": full["first_loss"],
+                "report_count": 0,
+                "first_report": None,
             })
 
     for issue in issues:
@@ -136,6 +167,8 @@ def build_action_list(data: DataStore, time: datetime, limit: int | None = None)
             "deadline": issue["deadline"],
             "urgency": _urgency(issue),
             "reason": make_reason(issue),
+            "report_count": issue["report_count"],
+            "first_reported_at": issue["first_report"],
             "state": "open",
         })
     return actions

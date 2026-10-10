@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import Depends, Query, Request
 
 from app.core.config import Settings, get_settings
-from app.core.errors import ApiError, bad_request
+from app.core.errors import bad_request
 from app.services import views
 from app.services.data_loader import DataStore
 from app.utils import mock_data
@@ -44,9 +44,3 @@ def sim_time(
     meta: dict[str, Any] = Depends(get_meta),
 ) -> datetime:
     return parse_time(time, meta)
-
-
-def require_mock(data: DataStore | None = Depends(get_data)) -> None:
-    # For endpoints whose real logic is not built yet; only MOCK=1 works.
-    if data is not None:
-        raise ApiError(500, "Real data mode is not implemented yet for this endpoint; set MOCK=1")

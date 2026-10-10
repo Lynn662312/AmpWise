@@ -4,6 +4,7 @@ Read this before writing any code in this repo.
 
 > **Update:** the data is now US (ACN dataset, California): station local time (`-08:00`), USD, US holidays.
 > Mentions of Malaysia, `+08:00`, ringgit and Hari Raya below are from the first draft. See the v0.3 note in `docs/api_contract.md`.
+> Priority also changed (v0.4): safety faults first; then charger maintenance (sensor-detected or driver-reported) by number of driver reports; then station issues by money at risk.
 
 ## What we are building
 

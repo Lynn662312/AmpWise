@@ -203,9 +203,9 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 
 **阶段 4：证明效果（14–20h）/ Phase 4: prove it**
 
-- [ ] `whatif.py`：`simulate_fix`（必须 / required），加桩、折扣（可选 / optional）
-- [ ] `backtest.py`：`run_baseline`、`run_ours`、`compare`
-- [ ] `/api/whatif`、`/api/backtest` 接上 / wire up
+- [x] `whatif.py`：`simulate_fix`（必须 / required），加桩、折扣（可选 / optional）— **已完成 Done**（修桩和加桩已做，折扣未做 / fix and add chargers done, discount not built）
+- [x] `backtest.py`：`run_baseline`、`run_ours`、`compare` — **已完成 Done**
+- [x] `/api/whatif`、`/api/backtest` 接上 / wire up — **已完成 Done**
 - [ ] 把回测数字交给做 slides 的人 / hand backtest numbers to whoever makes slides
 
 **阶段 5：收尾（20–24h）/ Phase 5: wrap up**

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from app.services.data_loader import DataStore
-from app.services.priority import build_action_list
+from app.services.priority import build_action_list, score_issue
 
 MYT = timezone(timedelta(hours=8))
 NORMAL_TUESDAY = datetime(2026, 3, 17, 14, 0, tzinfo=MYT)
@@ -16,9 +16,47 @@ def test_safety_fault_is_first_then_rm_descending(data: DataStore) -> None:
     actions = build_action_list(data, DAY_BEFORE_RAYA)
     assert actions[0]["issue_type"] == "safety_fault"
     assert actions[0]["urgency"] == "critical"
-    rest = [a["rm_at_risk"] for a in actions if a["issue_type"] != "safety_fault"]
-    assert rest == sorted(rest, reverse=True)
     assert [a["rank"] for a in actions] == list(range(1, len(actions) + 1))
+
+
+def test_order_is_safety_then_chargers_by_report_count_then_stations(data: DataStore) -> None:
+    actions = build_action_list(data, DAY_BEFORE_RAYA)
+    assert [a["issue_type"] for a in actions] == [
+        "safety_fault", "degraded", "user_reported", "connector_fault",
+        "chronic_undercapacity", "congestion", "congestion", "congestion", "underused",
+    ]
+    # Charger maintenance: most driver reports first (two have 3 here, so money decides), then 0 reports.
+    assert [a["report_count"] for a in actions[1:4]] == [3, 3, 0]
+    assert actions[1]["rm_at_risk"] > actions[2]["rm_at_risk"]
+    assert actions[1]["first_reported_at"] == datetime(2026, 3, 25, 10, tzinfo=MYT)
+    # Station issues: most money at risk first.
+    money = [a["rm_at_risk"] for a in actions[4:]]
+    assert money == sorted(money, reverse=True)
+
+
+def test_charger_reported_by_drivers_but_not_by_sensors_gets_an_action(data: DataStore) -> None:
+    actions = build_action_list(data, DAY_BEFORE_RAYA)
+    reported = [a for a in actions if a["issue_type"] == "user_reported"]
+
+    # stn_002_c4 has three reports and healthy sensors; stn_001_c3 has one report, which is not enough.
+    assert [a["id"] for a in reported] == ["user_reported:stn_002:stn_002_c4"]
+    assert reported[0]["recommended_action"] == "Inspect charger"
+    assert "3 drivers have reported it since Wednesday 9am" in reported[0]["reason"]
+
+
+def test_more_driver_reports_rank_higher() -> None:
+    charger = {"charger_id": "stn_001_c1"}
+    many = {**charger, "issue_type": "user_reported", "report_count": 5, "rm_at_risk": 10.0}
+    few = {**charger, "issue_type": "degraded", "report_count": 2, "rm_at_risk": 9000.0}
+    none = {**charger, "issue_type": "connector_fault", "report_count": 0, "rm_at_risk": 9000.0}
+    safety = {**charger, "issue_type": "safety_fault", "report_count": 0, "rm_at_risk": 1.0}
+    station = {"charger_id": None, "issue_type": "congestion", "report_count": 0, "rm_at_risk": 50000.0}
+    assert sorted([station, none, few, many, safety], key=score_issue) == [safety, many, few, none, station]
+
+
+def test_driver_reports_support_a_sensor_fault(data: DataStore) -> None:
+    degraded = next(a for a in build_action_list(data, DAY_BEFORE_RAYA) if a["id"] == "degraded:stn_003:stn_003_c1")
+    assert "Drivers have also reported it (3 reports)" in degraded["reason"]
 
 
 def test_action_ids_follow_the_contract(data: DataStore) -> None:

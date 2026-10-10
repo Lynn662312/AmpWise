@@ -11,6 +11,7 @@ STATION_COLUMNS = ["station_id", "name", "lat", "lon", "n_chargers", "power_kw"]
 FORECAST_COLUMNS = ["station_id", "slot_start", "arrivals", "arrivals_baseline", "is_festive"]
 HEALTH_COLUMNS = ["charger_id", "station_id", "date", "power_ratio", "baseline", "status", "p_fault", "evidence"]
 FAULT_LABEL_COLUMNS = ["charger_id", "fault_type", "start_date"]
+USER_REPORT_COLUMNS = ["charger_id", "reported_at"]
 PARAM_KEYS = ["avg_charge_min", "rm_per_session", "max_tolerable_wait_min"]
 META_KEYS = ["corridor_name", "currency", "festive_periods", "demo_times"]
 
@@ -22,6 +23,7 @@ class DataStore:
     forecasts: pd.DataFrame
     health: pd.DataFrame
     fault_labels: pd.DataFrame
+    user_reports: pd.DataFrame
     params: dict[str, float]
 
 
@@ -66,6 +68,17 @@ def load_params(data_dir: str) -> dict[str, float]:
     return params
 
 
+def load_user_reports(data_dir: str) -> pd.DataFrame:
+    """Driver fault reports. The file is optional: without it there are simply no reports."""
+    if not (Path(data_dir) / "user_reports.parquet").exists():
+        return pd.DataFrame({"charger_id": pd.Series(dtype=str), "reported_at": pd.Series(dtype="datetime64[ns, UTC]")})
+    df = _read(data_dir, "user_reports.parquet", USER_REPORT_COLUMNS)
+    df["reported_at"] = pd.to_datetime(df["reported_at"])
+    if df["reported_at"].dt.tz is None:
+        raise ValueError("user_reports.parquet reported_at must include a UTC offset")
+    return df.sort_values("reported_at").reset_index(drop=True)
+
+
 def load_meta(data_dir: str) -> dict[str, Any]:
     meta = json.loads((Path(data_dir) / "meta.json").read_text(encoding="utf-8"))
     missing = [k for k in META_KEYS if k not in meta]
@@ -81,5 +94,6 @@ def load_all(data_dir: str) -> DataStore:
         forecasts=load_forecasts(data_dir),
         health=load_health(data_dir),
         fault_labels=load_fault_labels(data_dir),
+        user_reports=load_user_reports(data_dir),
         params=load_params(data_dir),
     )

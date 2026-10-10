@@ -48,7 +48,10 @@ def test_convert_ml_outputs(tmp_path) -> None:
 
     assert data.meta["currency"] == "USD"
     assert data.meta["festive_periods"][0]["name"] == "Christmas"
-    assert data.meta["festive_periods"][0]["start"] == "2019-12-23T00:00:00-08:00"
+    # near_holiday days are not festive: the period is the holiday itself.
+    assert data.meta["festive_periods"][0]["start"] == "2019-12-25T00:00:00-08:00"
+    assert data.meta["festive_periods"][0]["end"] == "2019-12-25T23:30:00-08:00"
+    assert data.meta["demo_times"][1]["time"] == "2019-12-24T09:00:00-08:00"
     assert [d["label"] for d in data.meta["demo_times"]] == ["Normal Tuesday", "Day before Christmas"]
 
     # The app answers on the converted files at a demo time.

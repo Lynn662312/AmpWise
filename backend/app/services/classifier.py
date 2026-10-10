@@ -11,12 +11,24 @@ from app.services.queueing import predict_wait
 LOOKAHEAD_HOURS = 24
 RED_WAIT_MIN = 40.0  # same limit as WaitLevel "red"
 UNDERUSED_UTILISATION = 0.10  # assumption: under 10% busy over the next day
+REPORT_WINDOW_DAYS = 7  # assumption: driver reports older than a week are ignored
 
 
 def latest_health(data: DataStore, charger_id: str, time: datetime) -> pd.Series | None:
     """The charger's health row on or before the simulated day."""
     rows = data.health[(data.health["charger_id"] == charger_id) & (data.health["date"] <= time.date())]
     return None if rows.empty else rows.iloc[-1]
+
+
+def recent_reports(data: DataStore, charger_id: str, time: datetime) -> pd.Series:
+    """Times drivers reported this charger in the last week, earliest first."""
+    reports = data.user_reports
+    return reports.loc[
+        (reports["charger_id"] == charger_id)
+        & (reports["reported_at"] <= time)
+        & (reports["reported_at"] > time - timedelta(days=REPORT_WINDOW_DAYS)),
+        "reported_at",
+    ]
 
 
 def classify_charger(data: DataStore, charger_id: str, time: datetime) -> ChargerStatus:

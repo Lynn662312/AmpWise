@@ -4,12 +4,12 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.3 · 2026-10-10
+Version: v0.4 · 2026-10-10
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
 > - **Money:** USD. Field names keep the `rm_` prefix for now (`rm_at_risk`, `rm_per_session`, …); read the currency from `meta.currency`.
-> - **Festive:** US public holidays and the days near them.
+> - **Festive:** US public holidays only (ML's `is_holiday`). Days near a holiday (`near_holiday`) do not count.
 > - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). The field names and shapes are still correct.
 
 ---
@@ -53,6 +53,7 @@ type IssueType =
   | "safety_fault"          // 安全故障 (leakage / overheating trend)
   | "degraded"              // 性能衰退 (low power ratio)
   | "connector_fault"       // 接口故障 (many failed / short sessions)
+  | "user_reported"         // 用户报修 (v0.4: drivers reported it, sensors show no fault)
   | "congestion"            // 短期拥堵
   | "chronic_undercapacity" // 长期容量不足
   | "underused";            // 使用率过低
@@ -126,6 +127,8 @@ interface Action {
   deadline: string | null;
   urgency: Urgency;
   reason: string;                  // template sentence, always present, no AI
+  report_count: number;            // v0.4: driver reports in the last 7 days (0 for station issues)
+  first_reported_at: string | null; // v0.4: time of the earliest of those reports
   state: ActionState;
 }
 
@@ -228,7 +231,16 @@ Response `200`: `Station[]`
 
 ### ★ GET `/api/actions?time=&limit=`
 
-`limit` default 20. Sorted: `safety_fault` first, then `rm_at_risk` descending. Response `200`: `Action[]`
+`limit` default 20. Response `200`: `Action[]`
+
+Sort order (v0.4):
+
+1. `safety_fault`.
+2. Charger maintenance — found by the charger's own sensors (`degraded`, `connector_fault`) or reported by drivers (`user_reported`): `report_count` descending, because more reports means more people affected. Ties: `rm_at_risk` descending.
+3. Station issues (`congestion`, `chronic_undercapacity`, `underused`): `rm_at_risk` descending.
+
+`user_reported` = a charger with 2 or more driver reports in the last 7 days whose sensors show no fault.
+Driver reports on a charger the sensors already flag do not create a second action; they raise that action's `report_count`.
 
 ```json
 [{
@@ -318,6 +330,7 @@ Backend reads these at startup. Path set by `DATA_DIR` in backend `.env`.
 | `fault_labels.parquet` | charger_id, fault_type, start_date | ML 2 |
 | `params.json` | avg_charge_min, rm_per_session, max_tolerable_wait_min | ML 1 + team |
 | `meta.json` (v0.3) | corridor_name, currency, festive_periods, demo_times | Backend |
+| `user_reports.parquet` (v0.4, optional) | charger_id, reported_at (one row per driver report, timestamp with offset) | ML |
 
 Dummy versions with the right columns are due by hour 3.
 
@@ -337,6 +350,13 @@ Only the **backend** touches Firestore (Admin SDK). The frontend never reads or 
 | `advice_cache` | `{action_id}|{time}|{language}` | Advice + created_at | Survives server restarts (free hosting sleeps) |
 
 Model outputs (forecasts, health) are **not** stored in Firestore — they stay in parquet, loaded into memory.
+
+What needs storing and what does not (v0.4):
+
+| Data the frontend shows | Where it comes from | Stored? |
+| --- | --- | --- |
+| Driver report count and time, sensor status and evidence, forecasts | ML files, served through the API | No, read-only |
+| Maintenance status (open / assigned / done) and when it changed | Someone clicking in the app | Yes: `actions_status`, with `updated_at` |
 
 `firebase/firestore.rules` — deny all client access, because there is no login:
 
@@ -370,6 +390,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-10 | v0.4 driver reports: new issue type `user_reported`, charger actions sorted by `report_count`, new `Action.report_count` and `Action.first_reported_at`, optional `user_reports.parquet`; festive = `is_holiday` only | |
 | 2026-10-10 | v0.3 data is US (ACN): station local time, USD, US holidays; added `meta.currency`, `meta.json`, optional `arrivals_actual` | |
 | 2026-10-10 | v0.2 renamed to AmpWise; added demo reset, scenarios endpoints, Firestore section (no login) | |
 | 2026-10-10 | v0.1 first draft | |

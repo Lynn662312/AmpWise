@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.errors import not_found
-from app.services.classifier import latest_health, working_chargers
+from app.services.classifier import latest_health, recent_reports, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import build_action_list, upcoming_slots
 from app.services.queueing import predict_wait
@@ -78,12 +78,14 @@ def charger_health(data: DataStore, charger_id: str, time: datetime, days: int) 
     window = history[history["date"] > today - timedelta(days=days)]
     faulty_days = history[history["status"] != "healthy"]["date"]
     is_faulty = latest["status"] != "healthy"
+    n_reports = len(recent_reports(data, charger_id, time))
+    evidence = [*latest["evidence"], f"{n_reports} driver report(s) in the last 7 days"] if n_reports else latest["evidence"]
     return {
         "charger_id": charger_id,
         "station_id": latest["station_id"],
         "status": latest["status"],
         "p_fault": float(latest["p_fault"]),
-        "evidence": latest["evidence"],
+        "evidence": evidence,
         "series": [
             {"date": row.date, "ratio": row.power_ratio, "baseline": row.baseline} for row in window.itertuples()
         ],

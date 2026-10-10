@@ -9,8 +9,8 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 2 | Calculation core | Done |
 | 3 | Action list on parquet data | Done |
 | 4 | AI advice | Built, needs a real key |
-| 5 | What-if and backtest | Next |
-| 6 | Frontend integration (on dummy data) | |
+| 5 | What-if and backtest | Done |
+| 6 | Frontend integration (on dummy data) | Next |
 | 7 | ML integration (Colab outputs) | |
 | 8 | Deploy and optional extras | |
 
@@ -87,7 +87,17 @@ In plain words: find the problems, put a ringgit value on each, sort them, and w
 
 How to test: `pytest -v` shows 38 passed. Then run `python -m scripts.make_dummy_data`, set `MOCK=0` in `backend/.env`, start the server and call `/api/actions` with the two demo times: "Normal Tuesday" gives 2 actions, "Day before Raya exodus" gives 7 with the safety fault first.
 
-Still mock-only (500 when `MOCK=0`): advice, what-if, backtest.
+Ranking, updated to include driver reports:
+
+1. Safety faults.
+2. Charger maintenance, whether the charger's own sensors found it or drivers reported it: most driver reports first, because more reports means more people affected. Ties go to the most money at risk.
+3. Station issues (congestion, capacity, underuse), most money at risk first.
+
+A charger that drivers reported but whose sensors show no fault becomes a `user_reported` action ("Inspect charger"); it needs 2 or more reports in the last 7 days. Reports on a charger the sensors already flag raise that action's report count and are not listed twice. Each action carries `report_count` and `first_reported_at` for the frontend to show.
+
+Reports come from `user_reports.parquet` (ML). ML has not sent the field names for sensor results, fault dates or driver reports yet, so the dummy data and the converter write placeholders; the converter is the one place to adapt when their names arrive.
+
+What needs storing: nothing from the ML files (report times, sensor results, forecasts are read-only and served through the API). Only what people change in the app needs storing: the maintenance status of an action and when it changed. That is Stage 8 (`PATCH /api/actions/{id}/status`), in memory first and Firestore at deploy.
 
 Assumptions to confirm with the team:
 
@@ -120,15 +130,29 @@ Notes:
 - Template advice is English only, and the pre-warm script warms English only.
 - The cache is in memory and is lost when the server restarts.
 
-## Stage 5 — What-if and backtest
+## Stage 5 — What-if and backtest — Done
 
 In plain words: show that following our list beats the usual way of working.
 
-- [ ] `app/services/whatif.py` — `simulate_fix` (required); add chargers and discount if time allows
-- [ ] `app/services/backtest.py` — `run_baseline`, `run_ours`, `compare`
-- [ ] Wire `POST /api/whatif` and `GET /api/backtest`; give the numbers to whoever makes slides
+- [x] `app/services/whatif.py` — `simulate_fix` and `simulate_add_chargers`; the discount scenario returns 400 "not available yet"
+- [x] `app/services/backtest.py` — `run_baseline`, `run_ours`, `compare`
+- [x] `POST /api/whatif` and `GET /api/backtest` answer from the data when `MOCK=0`
+- [x] `tests/test_whatif_backtest.py`
+- [ ] Give the backtest numbers to whoever makes slides (after ML's real files are in)
 
-How to test: fixing a broken charger must lower the wait and raise revenue; "ours" must not be worse than baseline.
+How to test: `pytest -v` shows 56 passed. With `MOCK=0`, fixing `stn_003_c1` at the "Day before Raya exodus" time lowers the wait and raises revenue, and `/api/backtest` shows `queue_minutes_saved` above zero.
+
+How the backtest works (assumptions to confirm with the team):
+
+- It replays 7 days, starting 4 days before the first festive period in the data. The `week` parameter is accepted but not used yet.
+- One technician repairs one charger per day; the charger works again the next day.
+- Baseline: a fault is known when the first driver reports it, and faults are fixed first come, first served.
+- Ours: a fault is known the day the sensors flag it, or on its second driver report, and faults are fixed in action-list order.
+- Rerouting drivers to other stations is not simulated.
+- Forecast error compares the model and "same slot last week" against `arrivals_actual`.
+- Precision and recall compare the chargers the health model flagged with `fault_labels.parquet`.
+
+What-if looks 72 hours ahead; revenue is the sessions that actually charge × revenue per session.
 
 ## Stage 6 — Frontend integration (before ML, on dummy data)
 
@@ -150,8 +174,10 @@ How to bring ML's files in:
 4. Restart the server with `MOCK=0`.
 
 - [x] `scripts/convert_ml_outputs.py` — renames ML's columns, converts UTC to California time, applies the assumed festive multiplier, and writes all the files the backend reads (tested on a made-up file in ML's format, not yet on the real one)
+- [x] Decided: only `is_holiday` counts as festive; `near_holiday` is ignored
+- [x] Decided: ML's wait columns are not used, so their average charge time is not needed; the backend uses its own `avg_charge_min`
 - [ ] Run it on ML's real files and tune the placeholders at the top of the script: station names, coordinates, charger counts, revenue per session, average charge time
-- [ ] Replace the placeholder charger faults when ML 2 delivers `health.parquet` and `fault_labels.parquet`
+- [ ] Replace the placeholder charger faults and driver reports when ML delivers the sensor data (`health.parquet`, `fault_labels.parquet`) and the report data (`user_reports.parquet`)
 - [ ] Put the files in `DATA_DIR`, replacing the dummy ones
 - [x] `scripts/check_data.py` — run `python -m scripts.check_data ../ml/outputs` on ML's files; it reports missing columns, unknown station ids, slots that are not 30 minutes, timestamps not in `+08:00`, unknown status values and charger counts that do not match
 - [x] `time_range`, `festive_periods`, `demo_times` and `currency` in `/api/meta` now come from the data files (`meta.json`, written by the converter)

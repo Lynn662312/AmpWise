@@ -18,6 +18,8 @@ class Action(BaseModel):
     deadline: datetime | None
     urgency: Urgency
     reason: str
+    report_count: int = 0
+    first_reported_at: datetime | None = None
     state: ActionState
 
 

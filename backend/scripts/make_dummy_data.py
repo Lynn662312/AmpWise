@@ -51,6 +51,26 @@ FAULTS = {
 }
 
 
+# A charger that really broke on this day but whose sensors show nothing; only drivers noticed.
+UNDETECTED = {"stn_002_c4": date(2026, 3, 24)}
+
+# charger_id -> when drivers reported it (day in March 2026, hour)
+REPORTS = {
+    "stn_003_c1": [(25, 10), (25, 15), (26, 9)],  # sensors also flag it
+    "stn_005_c1": [(26, 11)],
+    "stn_002_c2": [(27, 8), (27, 12)],
+    "stn_002_c4": [(25, 9), (25, 18), (26, 8)],  # reports only
+    "stn_001_c3": [(20, 13)],  # one report on a healthy charger: not enough for an action
+}
+
+
+def report_rows(reports: dict[str, list[datetime]]) -> pd.DataFrame:
+    """user_reports.parquet: one row per driver report."""
+    return pd.DataFrame(
+        [{"charger_id": charger_id, "reported_at": when} for charger_id, times in reports.items() for when in times]
+    )
+
+
 def _daily_shape(hour: float) -> float:
     """0-1 demand curve with one peak around 3pm."""
     return 0.15 + 0.85 * math.exp(-(((hour - 15) / 4) ** 2))
@@ -69,6 +89,8 @@ def _forecasts(rng: random.Random) -> pd.DataFrame:
                 "station_id": station["station_id"], "slot_start": slot,
                 "arrivals": round(arrivals, 2), "arrivals_baseline": round(baseline, 2),
                 "is_festive": is_festive,
+                # What "really happened": the forecast with some error, for the backtest.
+                "arrivals_actual": round(arrivals * rng.uniform(0.85, 1.15), 2),
             })
     return pd.DataFrame(rows)
 
@@ -105,7 +127,10 @@ def write_dummy_data(out_dir: str) -> None:
     pd.DataFrame(STATIONS).drop(columns="load").to_parquet(out / "stations.parquet", index=False)
     _forecasts(rng).to_parquet(out / "forecasts.parquet", index=False)
     health_rows(STATIONS, START.date(), DAYS, FAULTS, rng).to_parquet(out / "health.parquet", index=False)
-    fault_labels(FAULTS).to_parquet(out / "fault_labels.parquet", index=False)
+    undetected = {charger_id: ("undetected", day) for charger_id, day in UNDETECTED.items()}
+    fault_labels({**FAULTS, **undetected}).to_parquet(out / "fault_labels.parquet", index=False)
+    reports = {c: [datetime(2026, 3, day, hour, tzinfo=MYT) for day, hour in times] for c, times in REPORTS.items()}
+    report_rows(reports).to_parquet(out / "user_reports.parquet", index=False)
     (out / "params.json").write_text(json.dumps(PARAMS, indent=2), encoding="utf-8")
     (out / "meta.json").write_text(json.dumps(META, indent=2, ensure_ascii=False), encoding="utf-8")
 

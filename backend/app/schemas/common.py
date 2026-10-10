@@ -5,6 +5,7 @@ class IssueType(str, Enum):
     safety_fault = "safety_fault"
     degraded = "degraded"
     connector_fault = "connector_fault"
+    user_reported = "user_reported"
     congestion = "congestion"
     chronic_undercapacity = "chronic_undercapacity"
     underused = "underused"

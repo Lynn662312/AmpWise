@@ -33,10 +33,19 @@ def make_reason(issue: dict[str, Any]) -> str:
 
     charger = f"Charger {issue['charger_id'].rsplit('_c', 1)[-1]} at {station}"
     by = f" by {_when(issue['deadline'])}" if issue["deadline"] else ""
+    reports = issue["report_count"]
+    if issue_type == "user_reported":
+        return (
+            f"Inspect {charger}{by}. {reports} drivers have reported it since {_when(issue['first_report'])}, "
+            f"but its sensors show no fault."
+        )
+
+    # Faults the sensors detected; driver reports are added as supporting evidence.
+    backed = f" Drivers have also reported it ({reports} report{'s' if reports > 1 else ''})." if reports else ""
     if issue_type == "safety_fault":
-        return f"Take {charger} offline now. {issue['evidence'][0]}."
+        return f"Take {charger} offline now. {issue['evidence'][0]}.{backed}"
     if issue_type == "connector_fault":
-        return f"Repair the connector on {charger}{by}. {issue['evidence'][0]}, and {peak}."
+        return f"Repair the connector on {charger}{by}. {issue['evidence'][0]}, and {peak}.{backed}"
     return (
-        f"Fix {charger}{by}. It is delivering {issue['power_ratio'] * 100:.0f}% of rated power, and {peak}."
+        f"Fix {charger}{by}. It is delivering {issue['power_ratio'] * 100:.0f}% of rated power, and {peak}.{backed}"
     )

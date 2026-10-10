@@ -15,7 +15,7 @@ import openai
 
 from app.core.config import Settings
 from app.core.errors import not_found
-from app.services.classifier import latest_health, working_chargers
+from app.services.classifier import latest_health, recent_reports, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import HORIZON_HOURS, build_action_list, outlook, upcoming_slots
 
@@ -54,6 +54,7 @@ FALLBACK_STEPS: dict[str, list[str]] = {
     "safety_fault": ["Take the charger out of service now", "Send a technician to inspect the cable and connector"],
     "degraded": ["Dispatch a technician before the deadline", "Check the power module and cable temperature"],
     "connector_fault": ["Dispatch a technician before the deadline", "Inspect and replace the connector"],
+    "user_reported": ["Send a technician to inspect the charger", "Mark it out of service if the fault is confirmed"],
     "congestion": ["Redirect drivers to nearby stations during the peak", "Post expected waiting times in the app"],
     "chronic_undercapacity": ["Plan additional chargers for this station", "Redirect drivers until capacity is added"],
     "underused": ["Review pricing at this station", "Consider moving a charger to a busier station"],
@@ -92,6 +93,7 @@ def build_facts(data: DataStore, action: dict[str, Any], time: datetime) -> dict
             "p_fault": float(health["p_fault"]),
             "power_ratio": float(health["power_ratio"]),
             "evidence": health["evidence"],
+            "driver_reports_last_7_days": len(recent_reports(data, action["charger_id"], time)),
         }
     return facts
 
