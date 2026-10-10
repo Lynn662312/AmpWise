@@ -35,11 +35,7 @@ def list_actions(
 
     for action in actions:
         _recent_actions[action["id"]] = dict(action)
-
-    pending = [action for action in actions if action["state"] != "done"]
-    for rank, action in enumerate(pending, start=1):
-        action["rank"] = rank
-    return pending
+    return actions
 
 
 @router.patch("/{action_id:path}/status", response_model=Action)

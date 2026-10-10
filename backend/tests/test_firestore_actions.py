@@ -39,7 +39,8 @@ def test_action_status_round_trip(client: TestClient, monkeypatch: Any) -> None:
 
         refreshed = client.get("/api/actions", params={"time": TIME, "limit": 10})
         assert refreshed.status_code == 200
-        assert all(action["id"] != ACTION_ID for action in refreshed.json())
+        completed = next(action for action in refreshed.json() if action["id"] == ACTION_ID)
+        assert completed["state"] == "done"
     finally:
         app.dependency_overrides.pop(get_firestore, None)
 
