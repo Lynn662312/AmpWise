@@ -1,0 +1,66 @@
+{
+  "horizon_hours": 24,
+  "stations": [
+    "caltech/California_Garage_01",
+    "caltech/California_Garage_02",
+    "caltech/S_Wilson_Garage_01",
+    "jpl/Arroyo_Garage_01"
+  ],
+  "features": [
+    "station_cat",
+    "hour",
+    "dow",
+    "is_weekend",
+    "is_holiday",
+    "near_holiday",
+    "n_chargers",
+    "rated_kw",
+    "lag_48",
+    "lag_96",
+    "lag_336",
+    "mean_same_slot_7d",
+    "mean_same_slot_4w",
+    "trailing_24h",
+    "trailing_7d_daily",
+    "precip_mm",
+    "rain_flag"
+  ],
+  "rain_features_used": true,
+  "best_iteration": 1002,
+  "festive_multiplier_assumed": 2.0,
+  "demo_chargers": 4,
+  "test_metrics": [
+    {
+      "subset": "all slots",
+      "n_slots": 17472,
+      "model": 0.4151,
+      "last_week": 0.5183,
+      "mean_4w": 0.4524,
+      "improvement_vs_last_week": 0.1992
+    },
+    {
+      "subset": "weekday daytime (6-18h)",
+      "n_slots": 6100,
+      "model": 0.7566,
+      "last_week": 0.9905,
+      "mean_4w": 0.8184,
+      "improvement_vs_last_week": 0.2362
+    },
+    {
+      "subset": "holiday + adjacent days",
+      "n_slots": 2752,
+      "model": 0.3625,
+      "last_week": 0.5345,
+      "mean_4w": 0.4886,
+      "improvement_vs_last_week": 0.3219
+    },
+    {
+      "subset": "busiest 10% of slots",
+      "n_slots": 3921,
+      "model": 1.0896,
+      "last_week": 1.5152,
+      "mean_4w": 1.1812,
+      "improvement_vs_last_week": 0.2809
+    }
+  ]
+}
