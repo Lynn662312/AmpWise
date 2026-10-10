@@ -1,9 +1,9 @@
 """Backtest: replay one week twice and compare.
 
-Baseline: a fault is known only when drivers report it, and faults are fixed first come, first served.
-Ours:     a fault is known the day the sensors flag it (or drivers report it twice), and faults are
-          fixed in action-list order.
-Both have one technician, who repairs one charger per day (working again the next day).
+Baseline: what really happened. Every fault lasts until the day it was really repaired (`end_date`).
+Ours:     a fault is known the day the sensors flag it, or on its second driver report. One technician
+          repairs one known fault per day, in action-list order, and the charger works again the next day.
+A fault we never notice still ends on its real repair day, as in the baseline.
 """
 
 from datetime import date, timedelta
@@ -18,7 +18,6 @@ from app.services.priority import MIN_REPORTS, build_action_list
 from app.services.queueing import lost_sessions, predict_wait
 
 WEEK_DAYS = 7
-REPORT_DELAY_DAYS = 2  # assumption for a fault nobody reported: it is noticed two days after it starts
 
 
 def backtest_days(data: DataStore) -> list[date]:
@@ -36,15 +35,39 @@ def _flagged_dates(data: DataStore) -> dict[str, date]:
     return faulty.groupby("charger_id")["date"].min().to_dict()
 
 
-def _simulate(data: DataStore, days: list[date], known_from: dict[str, date], pick) -> list[dict[str, Any]]:
-    """Day by day: which chargers are down, the queues that causes, then one repair."""
-    fault_start = dict(zip(data.fault_labels["charger_id"], data.fault_labels["start_date"]))
-    slot_days = data.forecasts["slot_start"].dt.date
-    repaired: set[str] = set()
-    results = []
+def _known_from(data: DataStore, reports: pd.DataFrame, fault: dict[str, Any]) -> date | None:
+    """The day we learn of a fault: the sensors flag the charger, or drivers report it a second time."""
+    charger_id, start, end = fault["charger_id"], fault["start_date"], fault["end_date"]
+    found = []
+    health = data.health_by_charger.get(charger_id)
+    if health is not None:
+        flagged = health[(health["status"] != "healthy") & health["date"].between(start, end)]
+        found.extend(flagged["date"].head(1))
+    report_days = reports.loc[reports["charger_id"] == charger_id, "reported_at"].dt.date
+    during = sorted(day for day in report_days if start <= day <= end)
+    if len(during) >= MIN_REPORTS:
+        found.append(during[MIN_REPORTS - 1])
+    return min(found) if found else None
 
-    for day in days:
-        down = [c for c, start in fault_start.items() if start <= day and c not in repaired]
+
+def real_faults(data: DataStore, days: list[date]) -> list[dict[str, Any]]:
+    """The real faults that touch these days: charger, first day, repair day, and the day we learn of it."""
+    labels = data.fault_labels
+    if "end_date" not in labels.columns:  # no repair day given: the fault outlasts the week
+        labels = labels.assign(end_date=days[-1])
+    touching = labels[(labels["start_date"] <= days[-1]) & (labels["end_date"] >= days[0])]
+    faults = touching[["charger_id", "start_date", "end_date"]].to_dict("records")
+    reports = pd.concat([data.user_reports, data.site_reports])
+    for fault in faults:
+        fault["known_from"] = _known_from(data, reports, fault)
+    return faults
+
+
+def _queues(data: DataStore, days: list[date], down_by_day: list[set[str]]) -> list[dict[str, Any]]:
+    """The queues on each day, given which chargers are down that day."""
+    slot_days = data.forecasts["slot_start"].dt.date
+    results = []
+    for day, down in zip(days, down_by_day):
         queue_minutes = lost = arrivals_total = 0.0
         for station in data.stations.itertuples():
             n_working = station.n_chargers - sum(c.startswith(f"{station.station_id}_c") for c in down)
@@ -56,40 +79,33 @@ def _simulate(data: DataStore, days: list[date], known_from: dict[str, date], pi
                 lost += lost_sessions(arrivals, wait, data.params["max_tolerable_wait_min"])
                 arrivals_total += arrivals
         results.append({"date": day, "queue_minutes": queue_minutes, "lost": lost, "arrivals": arrivals_total})
-
-        known = [c for c, since in known_from.items() if since <= day and c not in repaired]
-        if known:
-            repaired.add(pick(known, day))
     return results
 
 
-def _report_dates(data: DataStore, nth: int) -> dict[str, date]:
-    """Day of each charger's nth driver report."""
-    rows = data.user_reports.groupby("charger_id").nth(nth - 1)
-    return dict(zip(rows["charger_id"], rows["reported_at"].dt.date))
-
-
 def run_baseline(data: DataStore, days: list[date]) -> list[dict[str, Any]]:
-    """Wait for drivers to report, then fix first come, first served."""
-    first_report = _report_dates(data, nth=1)
-    reported = {
-        c: first_report.get(c, start + timedelta(days=REPORT_DELAY_DAYS))
-        for c, start in zip(data.fault_labels["charger_id"], data.fault_labels["start_date"])
-    }
-    return _simulate(data, days, reported, pick=lambda known, day: min(known, key=reported.get))
+    """What really happened: each charger is down from the day its fault starts to the day it was repaired."""
+    faults = real_faults(data, days)
+    down_by_day = [{f["charger_id"] for f in faults if f["start_date"] <= day <= f["end_date"]} for day in days]
+    return _queues(data, days, down_by_day)
 
 
 def run_ours(data: DataStore, days: list[date]) -> list[dict[str, Any]]:
-    """Act on sensor flags as well as driver reports, and fix in action-list order."""
+    """Act the day a fault is known: one repair per day, in action-list order."""
     timezone = data.forecasts["slot_start"].dt.tz
-    known_from = {**_report_dates(data, nth=MIN_REPORTS), **_flagged_dates(data)}
+    faults = real_faults(data, days)
+    repaired: list[dict[str, Any]] = []
+    down_by_day = []
+    for day in days:
+        active = [f for f in faults if f["start_date"] <= day <= f["end_date"] and f not in repaired]
+        down_by_day.append({f["charger_id"] for f in active})
 
-    def by_priority(known: list[str], day: date) -> str:
-        evening = pd.Timestamp(f"{day} 23:30", tz=timezone).to_pydatetime()
-        ranked = [a["charger_id"] for a in build_action_list(data, evening) if a["charger_id"] in known]
-        return ranked[0] if ranked else known[0]
-
-    return _simulate(data, days, known_from, pick=by_priority)
+        known = [f for f in active if f["known_from"] is not None and f["known_from"] <= day]
+        if known:
+            evening = pd.Timestamp(f"{day} 23:30", tz=timezone).to_pydatetime()
+            ranked = [a["charger_id"] for a in build_action_list(data, evening)]
+            known.sort(key=lambda f: ranked.index(f["charger_id"]) if f["charger_id"] in ranked else len(ranked))
+            repaired.append(known[0])
+    return _queues(data, days, down_by_day)
 
 
 def _forecast_errors(data: DataStore, days: list[date]) -> tuple[float, float]:

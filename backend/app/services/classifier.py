@@ -30,9 +30,10 @@ def charge_min(data: DataStore, station_id: str) -> float:
     return data.params["avg_charge_min"]
 
 
-def recent_reports(data: DataStore, charger_id: str, time: datetime) -> pd.Series:
-    """Times drivers reported this charger in the last week, earliest first."""
-    reports = data.reports_by_charger.get(charger_id)
+def recent_reports(data: DataStore, charger_id: str, time: datetime, about_site: bool = False) -> pd.Series:
+    """Times drivers reported this charger (or, with about_site, its bay) in the last week, earliest first."""
+    by_charger = data.site_reports_by_charger if about_site else data.reports_by_charger
+    reports = by_charger.get(charger_id)
     if reports is None:
         return data.user_reports["reported_at"].iloc[:0]
     recent = (reports["reported_at"] <= time) & (reports["reported_at"] > time - timedelta(days=REPORT_WINDOW_DAYS))

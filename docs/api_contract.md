@@ -4,7 +4,7 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v0.4 · 2026-10-10
+Version: v0.5 · 2026-10-10
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
@@ -54,6 +54,7 @@ type IssueType =
   | "degraded"              // 性能衰退 (low power ratio)
   | "connector_fault"       // 接口故障 (many failed / short sessions)
   | "user_reported"         // 用户报修 (v0.4: drivers reported it, sensors show no fault)
+  | "site_issue"            // 现场问题 (v0.5: drivers reported a blocked or dirty bay; a technician cannot fix it)
   | "congestion"            // 短期拥堵
   | "chronic_undercapacity" // 长期容量不足
   | "underused";            // 使用率过低
@@ -158,6 +159,12 @@ interface WhatIfResult {
   summary: string;
 }
 
+interface ReportCategory {          // v0.5: one slice of the feedback pie chart
+  category: string;                // ML's own category name, e.g. "Won't start"
+  count: number;                   // complaints in this category
+  percentage: number;              // share of all counted complaints, 0-100, 1 decimal
+}
+
 interface BacktestResult {
   week_label: string;
   queue_minutes_saved: number;
@@ -238,9 +245,12 @@ Sort order (v0.4):
 1. `safety_fault`.
 2. Charger maintenance — found by the charger's own sensors (`degraded`, `connector_fault`) or reported by drivers (`user_reported`): `report_count` descending, because more reports means more people affected. Ties: `rm_at_risk` descending.
 3. Station issues (`congestion`, `chronic_undercapacity`, `underused`): `rm_at_risk` descending.
+4. Site issues (`site_issue`, v0.5): `report_count` descending.
 
 `user_reported` = a charger with 2 or more driver reports in the last 7 days whose sensors show no fault.
 Driver reports on a charger the sensors already flag do not create a second action; they raise that action's `report_count`.
+
+`site_issue` (v0.5) = a charger with 2 or more driver reports in the last 7 days about something at the bay that a technician cannot fix (a blocked bay, a dirty station). Its `recommended_action` is "Needs human action", `rm_at_risk` is 0 and `deadline` is null. These reports are counted separately from the charger maintenance reports above, so one charger can have both a maintenance action and a site action.
 
 ```json
 [{
@@ -312,6 +322,20 @@ Body: `WhatIfRequest` → Response `200`: `WhatIfResult`
 
 `week` default `"raya_2026"`. Response `200`: `BacktestResult`
 
+### GET `/api/reports/categories` (v0.5)
+
+Data for the pie chart of driver complaints. Response `200`: `ReportCategory[]`, largest first.
+
+No `time` parameter: it is counted once over all of ML's cleaned feedback (every charger, every date).
+Counted: the rows the ML cleaning step marked `keep` (the comment reads as negative and is not spam). Left out: positive comments and spam. The category `Other` stays, with only its real complaints. `Payment issue` is counted here although it never appears in the action list.
+
+```json
+[
+  { "category": "Blocked by non-EV", "count": 314, "percentage": 23.3 },
+  { "category": "Other", "count": 269, "percentage": 20.0 }
+]
+```
+
 ### GET `/api/health`
 
 Response `200`: `{ "status": "ok", "mock": false, "llm_configured": true }`
@@ -327,15 +351,17 @@ Backend reads these at startup. Path set by `DATA_DIR` in backend `.env`.
 | `stations.parquet` | station_id, name, lat, lon, n_chargers, power_kw | ML 1 |
 | `forecasts.parquet` | station_id, slot_start, arrivals, arrivals_baseline, is_festive | ML 1 |
 | `health.parquet` | charger_id, station_id, date, power_ratio, baseline, status, p_fault, evidence | ML 2 |
-| `fault_labels.parquet` | charger_id, fault_type, start_date | ML 2 |
+| `fault_labels.parquet` | charger_id, fault_type, start_date; v0.5 optional: end_date (the day the fault was really repaired) | ML 2 |
 | `params.json` | avg_charge_min, rm_per_session, max_tolerable_wait_min | ML 1 + team |
 | `meta.json` (v0.3) | corridor_name, currency, festive_periods, demo_times | Backend |
-| `user_reports.parquet` (v0.4, optional) | charger_id, reported_at (one row per driver report, timestamp with offset) | ML |
+| `report_categories.json` (v0.5, optional) | list of category, count, percentage (the `/api/reports/categories` response) | Backend (converter) |
+| `user_reports.parquet` (v0.4, optional) | charger_id, reported_at (one row per driver report, timestamp with offset); v0.5 optional: issue_type (`user_reported` or `site_issue`; `user_reported` when the column is missing) | ML |
 
 Dummy versions with the right columns are due by hour 3.
 
 v0.3: `forecasts.parquet` may also carry `arrivals_actual` (what really happened), used by the backtest.
 v0.4: `stations.parquet` may also carry `avg_charge_min` (that station's own average charge time); when present it replaces the shared value in `params.json`.
+v0.5: `health.parquet` may cover fewer chargers than `n_chargers` (only some chargers have sensors); a charger without rows counts as working. A charger can be faulty for some days and `healthy` again later, and can have several rows in `fault_labels.parquet`.
 
 **What ML actually delivers** (in `ml/output/` on `main`). ML's own names are kept as they are; the backend renames them with `python -m scripts.convert_ml_outputs` (see `docs/backend_plan.md`, Stage 7).
 
@@ -344,7 +370,11 @@ v0.4: `stations.parquet` may also carry `avg_charge_min` (that station's own ave
 | `model1_test_predictions.csv` | station, slot_utc, slot_local, arrivals, pred, baseline_last_week, is_holiday, near_holiday, wait_min_all_up, wait_min_one_down | `forecasts.parquet`: station → station_id, slot_utc → slot_start (California time), pred → arrivals, baseline_last_week → arrivals_baseline, is_holiday → is_festive, arrivals → arrivals_actual. `near_holiday` and the two wait columns are not used. |
 | `station_profile.csv` | station, sampled, mean_charge_min, median_charge_min, mean_kwh, rated_kw, energy_source, n_chargers, sessions_total | `stations.parquet`: n_chargers, rated_kw → power_kw, mean_charge_min → avg_charge_min. Names and coordinates are placeholders set in the converter. |
 | `model1_metrics.json` | festive_multiplier_assumed, test_metrics, … | Not used by the backend (holidays are no longer a focus). |
-| Sensor results, fault dates, driver reports | not delivered yet | Placeholders written by the converter. |
+| `acn_synth/stations.csv` | id, site_path, lat, lon, kw, … (one row per charger; ML calls a charger a "station") | Charger ids: `CAG1-003` at the site that is `stn_001` → `stn_001_c3`. Station `lat`/`lon` = the average of its chargers. Chargers at a site with no forecast are left out. |
+| `acn_synth/ocpp_events.csv` (too large for git, shared outside the repo) | timestamp, station_id, action, status, error_code, power_w, … | `health.parquet`: a `StatusNotification` with status `Faulted` makes the charger faulty on every California day until its next status message. error_code → status: `HighTemperature`, `GroundFailure`, `OverCurrentFailure`, `OverVoltage` → `safety_fault`; `ConnectorLockFailure` → `connector_fault`; `PowerMeterFailure`, `WeakSignal` → `degraded`. `p_fault` is 1 while faulted, else 0. `power_ratio` = the day's median `power_w` ÷ rated `kw`, capped at 1, carried forward on days with no reading. ML's label columns (`fault_id`, `fault_type`, `phase`) are not read. |
+| `acn_synth/fault_ground_truth.csv` | fault_id, station_id, fault_type, source, precursor_start, onset, end | `fault_labels.parquet`: station_id → charger_id, fault_type as it is, onset → start_date, end → end_date. `end` is when the fault was really repaired; the backtest uses it as "what really happened". |
+| `acn_synth/feedback_clean.csv` (written by `ml/src/preprocessing/clean_feedback.py` from `feedback.csv`) | feedback_id, timestamp, station_id, category, rating, free_text, **sentiment, is_spam, keep**, … (one row = one report, with its own id) | `sentiment` (`positive` / `negative`) is read from the comment text, not from the star rating; `is_spam` marks comments that describe nothing; `keep` = negative and not spam. Only `keep` rows are used. `report_categories.json`: their count per category. `user_reports.parquet`: category `Won't start`, `Slow charging`, `Cable stuck`, `Connector damaged`, `Screen broken`, `Other` → issue_type `user_reported`; `Blocked by non-EV`, `Cleanliness` → `site_issue`; `Payment issue` is left out of the action list. ML's answer columns (`true_station_id`, `ground_truth_origin`, `linked_fault_id`, `noise`) are not read. |
+| Other `acn_synth` files | sessions, site load, generator settings, raw frames | Not used by the backend. |
 
 ---
 
@@ -385,7 +415,7 @@ service cloud.firestore {
 | Where | Variable | Example |
 | --- | --- | --- |
 | backend | `MOCK` | `1` |
-| backend | `DATA_DIR` | `../ml/outputs` |
+| backend | `DATA_DIR` | `./data` |
 | backend | `CORS_ORIGINS` | `http://localhost:5173,https://ampwise.vercel.app` |
 | backend | `LLM_API_KEY` | (secret, never commit) |
 | backend | `LLM_MODEL` | provider's model name |
@@ -399,6 +429,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-10 | v0.5 ML sensor data (`acn_synth`): new issue type `site_issue` (ranked last), optional `user_reports.issue_type` and `fault_labels.end_date`, sensors may cover fewer chargers than `n_chargers`, converted files live in `backend/data/`; new `GET /api/reports/categories` and `report_categories.json` for the pie chart | |
 | 2026-10-10 | v0.4 driver reports: new issue type `user_reported`, charger actions sorted by `report_count`, new `Action.report_count` and `Action.first_reported_at`, optional `user_reports.parquet`; festive = `is_holiday` only | |
 | 2026-10-10 | v0.3 data is US (ACN): station local time, USD, US holidays; added `meta.currency`, `meta.json`, optional `arrivals_actual` | |
 | 2026-10-10 | v0.2 renamed to AmpWise; added demo reset, scenarios endpoints, Firestore section (no login) | |

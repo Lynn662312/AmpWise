@@ -5,6 +5,7 @@ Read this before writing any code in this repo.
 > **Update:** the data is now US (ACN dataset, California): station local time (`-08:00`), USD, US holidays.
 > Mentions of Malaysia, `+08:00`, ringgit and Hari Raya below are from the first draft. See the v0.3 note in `docs/api_contract.md`.
 > Priority also changed (v0.4): safety faults first; then charger maintenance (sensor-detected or driver-reported) by number of driver reports; then station issues by money at risk.
+> v0.5: ML's sensor log, real faults and driver feedback (`ml/output/acn_synth/`) are integrated. New issue type `site_issue` (blocked or dirty bay, "Needs human action"), ranked last.
 
 ## What we are building
 
@@ -25,7 +26,7 @@ Judging rubric we must hit: Detect → Categorize → Prioritize → Explain, an
 
 - Backend: Python 3.11, FastAPI, Pydantic v2, pandas, pyarrow. Firebase Admin SDK (Firestore only, no Auth).
 - Frontend: React + Vite + TypeScript, react-leaflet, recharts, @tanstack/react-query.
-- ML: notebooks in Colab; exported models in `ml/models/exported/`; precomputed outputs in `ml/outputs/` (parquet, git-ignored).
+- ML: notebooks in Colab; exported models in `ml/models/exported/`; ML's exports in `ml/output/`; the converted files the backend reads in `backend/data/` (parquet, committed, written by `backend/scripts/convert_ml_outputs.py`).
 
 ## Repo layout
 
@@ -39,7 +40,7 @@ backend/app/
   utils/          mock_data.py (returns the contract's example JSON)
 backend/tests/    pytest
 frontend/src/     pages, components, hooks, services (API calls), context (TimeContext), utils/types.ts
-ml/src/           preprocessing + inference (used by ML only; backend does NOT import it)
+ml/src/           preprocessing + inference (used by ML only; backend does NOT import it), e.g. preprocessing/clean_feedback.py
 firebase/         firestore.rules (deny all client access)
 docs/             api_contract.md
 ```
@@ -65,10 +66,10 @@ docs/             api_contract.md
 | wait | M/M/c (Erlang C) expected wait from arrivals, avg charge time, n_working |
 | lost sessions | cars that leave because wait > `max_tolerable_wait_min` |
 | rm_at_risk | lost sessions × `rm_per_session` if the issue is not fixed before the next peak |
-| issue types | safety_fault, degraded, connector_fault, congestion, chronic_undercapacity, underused |
-| priority | safety_fault always first; others sorted by rm_at_risk descending |
+| issue types | safety_fault, degraded, connector_fault, user_reported, congestion, chronic_undercapacity, underused, site_issue |
+| priority | safety_fault first; charger maintenance by driver reports; station issues by rm_at_risk; site_issue last |
 | what-if | one decision, before vs after (fix now vs later, add chargers, discount) |
-| backtest | a whole simulated festive week: baseline (fix in report order, nearest station) vs ours |
+| backtest | one replayed week: baseline (each fault lasts until its real repair day) vs ours (repair the day it is known, in action-list order) |
 
 ## Code style
 

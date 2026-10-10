@@ -55,6 +55,27 @@ def test_ours_is_better_than_baseline(data: DataStore) -> None:
     assert all(d["wait_ours_min"] <= d["wait_baseline_min"] for d in result["daily"])
 
 
+def test_a_fault_is_known_from_the_sensors_or_the_second_driver_report(data: DataStore) -> None:
+    faults = {f["charger_id"]: f for f in backtest.real_faults(data, backtest.backtest_days(data))}
+
+    # The sensors flag stn_003_c1 the day it breaks; in the data it was really repaired three days later.
+    assert faults["stn_003_c1"]["known_from"] == faults["stn_003_c1"]["start_date"] == date(2026, 3, 23)
+    assert faults["stn_003_c1"]["end_date"] == date(2026, 3, 26)
+    # stn_002_c4 has healthy sensors: it is known from its second driver report, the day after it broke.
+    assert faults["stn_002_c4"]["start_date"] == date(2026, 3, 24)
+    assert faults["stn_002_c4"]["known_from"] == date(2026, 3, 25)
+
+
+def test_baseline_is_what_really_happened_and_ours_repairs_sooner(data: DataStore) -> None:
+    days = backtest.backtest_days(data)
+    baseline, ours = backtest.run_baseline(data, days), backtest.run_ours(data, days)
+
+    # Same queues until the first fault is repaired, never worse afterwards, and better over the week.
+    assert baseline[0] == ours[0]
+    assert all(o["queue_minutes"] <= b["queue_minutes"] for b, o in zip(baseline, ours))
+    assert sum(o["queue_minutes"] for o in ours) < sum(b["queue_minutes"] for b in baseline)
+
+
 def test_backtest_endpoint(real_client: TestClient) -> None:
     res = real_client.get("/api/backtest")
     assert res.status_code == 200

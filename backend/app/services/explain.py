@@ -42,6 +42,11 @@ def make_reason(issue: dict[str, Any]) -> str:
             f"Inspect {charger}{by}. {reports} drivers have reported it since {_when(issue['first_report'])}, "
             f"but its sensors show no fault."
         )
+    if issue_type == "site_issue":
+        return (
+            f"{charger} needs a person on site. {reports} drivers have reported a blocked or dirty bay "
+            f"since {_when(issue['first_report'])}, which a technician cannot fix."
+        )
 
     # Faults the sensors detected; driver reports are added as supporting evidence.
     backed = f" Drivers have also reported it ({reports} report{'s' if reports > 1 else ''})." if reports else ""
@@ -49,6 +54,4 @@ def make_reason(issue: dict[str, Any]) -> str:
         return f"Take {charger} offline now. {issue['evidence'][0]}.{backed}"
     if issue_type == "connector_fault":
         return f"Repair the connector on {charger}{by}. {issue['evidence'][0]}, and {peak}.{backed}"
-    return (
-        f"Fix {charger}{by}. It is delivering {issue['power_ratio'] * 100:.0f}% of rated power, and {peak}.{backed}"
-    )
+    return f"Fix {charger}{by}. {issue['evidence'][0]}, and {peak}.{backed}"

@@ -1,0 +1,41 @@
+{
+  "corridor_name": "ACN California (Caltech / JPL)",
+  "currency": "USD",
+  "festive_periods": [
+    {
+      "name": "Christmas",
+      "start": "2019-12-25T00:00:00-08:00",
+      "end": "2019-12-25T23:30:00-08:00"
+    },
+    {
+      "name": "New Year",
+      "start": "2020-01-01T00:00:00-08:00",
+      "end": "2020-01-01T23:30:00-08:00"
+    },
+    {
+      "name": "Martin Luther King Jr. Day",
+      "start": "2020-01-20T00:00:00-08:00",
+      "end": "2020-01-20T23:30:00-08:00"
+    },
+    {
+      "name": "Presidents' Day weekend",
+      "start": "2020-02-15T00:00:00-08:00",
+      "end": "2020-02-15T23:30:00-08:00"
+    },
+    {
+      "name": "Presidents' Day",
+      "start": "2020-02-17T00:00:00-08:00",
+      "end": "2020-02-17T23:30:00-08:00"
+    }
+  ],
+  "demo_times": [
+    {
+      "label": "Quiet Sunday",
+      "time": "2020-02-23T07:00:00-08:00"
+    },
+    {
+      "label": "Weekday morning rush",
+      "time": "2020-02-25T07:00:00-08:00"
+    }
+  ]
+}

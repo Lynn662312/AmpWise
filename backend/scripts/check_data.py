@@ -1,7 +1,7 @@
 """Checks a folder of ML files against docs/api_contract.md section 5.
 
 Run from backend/ on the files exported from Colab, before using them:
-    python -m scripts.check_data ../ml/outputs
+    python -m scripts.check_data
 """
 
 import sys
@@ -50,10 +50,18 @@ def check(data_dir: str) -> list[str]:
     if wrong_ids:
         problems.append(f"health.parquet charger ids must look like stn_001_c1, e.g. got {wrong_ids[0]}")
 
+    # Not every charger has sensors, so health.parquet may cover fewer chargers than the station has.
     for station in data.stations.itertuples():
         found = data.health.loc[data.health["station_id"] == station.station_id, "charger_id"].nunique()
-        if found != station.n_chargers:
+        if found > station.n_chargers:
             problems.append(f"{station.station_id}: n_chargers is {station.n_chargers} but health.parquet has {found} chargers")
+
+    chargers = set(data.health["charger_id"])
+    reports = pd.concat([data.user_reports, data.site_reports])
+    for name, df in (("fault_labels", data.fault_labels), ("user_reports", reports)):
+        unknown = set(df["charger_id"]) - chargers
+        if unknown:
+            problems.append(f"{name}.parquet has charger ids missing from health.parquet: {sorted(unknown)[:5]}")
 
     print(f"Stations: {len(station_ids)} | forecast range: {slots.min()} to {slots.max()}")
     return problems

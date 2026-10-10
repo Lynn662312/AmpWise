@@ -24,6 +24,7 @@ RECOMMENDED_ACTIONS: dict[str, str] = {
     "congestion": "Redirect drivers",
     "chronic_undercapacity": "Add chargers",
     "underused": "Review pricing or location",
+    "site_issue": "Needs human action",
 }
 
 
@@ -67,9 +68,12 @@ def score_issue(issue: dict[str, Any]) -> tuple[int, int, float]:
     2. Charger maintenance (found by sensors or reported by drivers): most driver reports first,
        because reports show how many people the fault is affecting. Ties: most money at risk first.
     3. Station problems (congestion, capacity, underuse): most money at risk first.
+    4. Site issues (blocked or dirty bay, which a technician cannot fix): most driver reports first.
     """
     if issue["issue_type"] == "safety_fault":
         return (0, 0, 0.0)
+    if issue["issue_type"] == "site_issue":
+        return (3, -issue["report_count"], 0.0)
     if issue["charger_id"]:
         return (1, -issue["report_count"], -issue["rm_at_risk"])
     return (2, 0, -issue["rm_at_risk"])
@@ -105,7 +109,6 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
                 "charger_id": charger_id,
                 "rm_at_risk": float(health["p_fault"]) * saved * rm_per_session,
                 "deadline": time if is_safety else current["first_loss"],
-                "power_ratio": float(health["power_ratio"]),
                 "evidence": health["evidence"],
                 "report_count": len(reports),
                 "first_report": reports.iloc[0].to_pydatetime() if len(reports) else None,
@@ -122,6 +125,19 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
                 "deadline": if_down["first_loss"],
                 "report_count": len(reports),
                 "first_report": reports.iloc[0].to_pydatetime(),
+            })
+
+        # Drivers keep reporting the bay (blocked or dirty). No money value: the charger itself works.
+        site_reports = recent_reports(data, charger_id, time, about_site=True)
+        if len(site_reports) >= MIN_REPORTS:
+            issues.append({
+                **current,
+                "issue_type": IssueType.site_issue.value,
+                "charger_id": charger_id,
+                "rm_at_risk": 0.0,
+                "deadline": None,
+                "report_count": len(site_reports),
+                "first_report": site_reports.iloc[0].to_pydatetime(),
             })
 
     # Station problems: value = sessions still lost with every charger working.

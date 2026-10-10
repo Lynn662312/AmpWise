@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     mock: bool = True
-    data_dir: str = "../ml/outputs"
+    data_dir: str = "./data"
     cors_origins: str = "http://localhost:5173"
     llm_api_key: str = ""
     llm_model: str = ""

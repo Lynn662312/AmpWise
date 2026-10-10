@@ -58,6 +58,7 @@ FALLBACK_STEPS: dict[str, list[str]] = {
     "congestion": ["Redirect drivers to nearby stations during the peak", "Post expected waiting times in the app"],
     "chronic_undercapacity": ["Plan additional chargers for this station", "Redirect drivers until capacity is added"],
     "underused": ["Review pricing at this station", "Consider moving a charger to a busier station"],
+    "site_issue": ["Send site staff to check the bay", "Clear or clean the bay, then mark the action done"],
 }
 
 # (action_id, time, language) -> advice from the AI

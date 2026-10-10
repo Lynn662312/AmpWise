@@ -32,6 +32,20 @@ def test_loader_rejects_missing_column(data: DataStore, tmp_path) -> None:
         data_loader.load_stations(str(tmp_path))
 
 
+def test_reports_are_about_the_charger_unless_marked_as_site_issue(data: DataStore, tmp_path) -> None:
+    # The dummy file marks two reports as site issues; the loader keeps them apart.
+    assert set(data.user_reports["issue_type"]) == {"user_reported"}
+    assert list(data.site_reports["charger_id"]) == ["stn_001_c2", "stn_001_c2"]
+
+    # issue_type is optional: a file without it holds charger reports only.
+    data.user_reports.drop(columns="issue_type").to_parquet(tmp_path / "user_reports.parquet")
+    assert set(data_loader.load_user_reports(str(tmp_path))["issue_type"]) == {"user_reported"}
+
+    data.user_reports.assign(issue_type="payment").to_parquet(tmp_path / "user_reports.parquet")
+    with pytest.raises(ValueError, match="payment"):
+        data_loader.load_user_reports(str(tmp_path))
+
+
 def test_classify_charger_follows_health_over_time(data: DataStore) -> None:
     assert classify_charger(data, "stn_003_c1", NORMAL_TUESDAY) == ChargerStatus.healthy
     assert classify_charger(data, "stn_003_c1", DAY_BEFORE_RAYA) == ChargerStatus.degraded

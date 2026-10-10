@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import actions, backtest, chargers, meta, stations, whatif
+from app.api.routes import actions, backtest, chargers, meta, reports, stations, whatif
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.services import data_loader
@@ -29,5 +29,5 @@ app.add_middleware(
 )
 register_error_handlers(app)
 
-for module in (meta, stations, chargers, actions, whatif, backtest):
+for module in (meta, stations, chargers, actions, whatif, backtest, reports):
     app.include_router(module.router, prefix="/api")
