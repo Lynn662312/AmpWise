@@ -16,7 +16,8 @@ def test_meta(client: TestClient) -> None:
     body = client.get("/api/meta").json()
     assert body["corridor_name"] == mock_data.META["corridor_name"]
     assert body["time_range"]["start"] == "2026-03-16T00:00:00+08:00"
-    assert body["assumptions"]["rm_per_session"] == 35.0
+    assert body["assumptions"] == {"rm_per_session": 35.0, "avg_charge_min": 38.0}
+    assert body["backtest_weeks"] == [{"value": "2026-03-23", "label": "Week of 23 Mar 2026"}]
 
 
 def test_stations(client: TestClient) -> None:
@@ -88,12 +89,20 @@ def test_report_categories(client: TestClient) -> None:
 
 
 def test_overview_placeholder(client: TestClient) -> None:
-    res = client.get("/api/overview")
+    res = client.get("/api/overview", params={"time": TIME})
     assert res.status_code == 200
     body = res.json()
     assert body["data_source"] == "placeholder"
     assert body["energy_delivered_kwh"] == 1284.0
     assert len(body["energy_trend"]) == 7
+
+
+def test_station_chargers(client: TestClient) -> None:
+    res = client.get("/api/stations/stn_003/chargers", params={"time": TIME})
+    assert res.status_code == 200
+    assert res.json()[0] == {"charger_id": "stn_003_c1", "station_id": "stn_003", "power_kw": 60.0, "status": "degraded"}
+    assert [c["status"] for c in res.json()[1:]] == ["healthy", "healthy", "healthy"]
+    assert client.get("/api/stations/stn_999/chargers", params={"time": TIME}).status_code == 404
 
 
 def test_missing_time_is_bad_request(client: TestClient) -> None:

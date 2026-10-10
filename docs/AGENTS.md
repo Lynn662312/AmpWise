@@ -5,7 +5,9 @@ Read this before writing any code in this repo.
 > **Update:** the data is now US (ACN dataset, California): station local time (`-08:00`), USD, US holidays.
 > Mentions of Malaysia, `+08:00`, ringgit and Hari Raya below are from the first draft. See the v0.3 note in `docs/api_contract.md`.
 > Priority also changed (v0.4): safety faults first; then charger maintenance (sensor-detected or driver-reported) by number of driver reports; then station issues by money at risk.
-> v0.5: ML's sensor log, real faults and driver feedback (`ml/output/acn_synth/`) are integrated. New issue type `site_issue` (blocked or dirty bay, "Needs human action"), ranked last.
+> v0.5: ML's sensor log, real faults and driver feedback (`ml/output/acn_synth/`) are integrated.
+> v0.6: money comes from charger capacity, not waiting time. `max_tolerable_wait_min` and the issue type `site_issue` no longer exist. Ranking: safety faults, then everything else by money at risk, then underused stations.
+> v0.7: new `GET /api/stations/{id}/chargers`, real `GET /api/overview?time=` and `meta.backtest_weeks`. The frontend needs no sample data in API mode.
 
 ## What we are building
 
@@ -32,7 +34,7 @@ Judging rubric we must hit: Detect → Categorize → Prioritize → Explain, an
 
 ```
 backend/app/
-  api/routes/     one file per endpoint group: meta, stations, chargers, actions, whatif, backtest, scenarios, demo
+  api/routes/     one file per endpoint group: meta, stations, chargers, actions, whatif, backtest, reports, overview (scenarios, demo: not built yet)
   core/           config.py (env vars via pydantic-settings)
   schemas/        Pydantic models mirroring docs/api_contract.md section 3
   services/       data_loader, queueing, classifier, priority, explain, whatif, backtest, llm
@@ -64,10 +66,10 @@ docs/             api_contract.md
 | arrivals | cars arriving at a station in a slot (from ML 1) |
 | n_working | chargers not flagged faulty and not out of service |
 | wait | M/M/c (Erlang C) expected wait from arrivals, avg charge time, n_working |
-| lost sessions | cars that leave because wait > `max_tolerable_wait_min` |
-| rm_at_risk | lost sessions × `rm_per_session` if the issue is not fixed before the next peak |
-| issue types | safety_fault, degraded, connector_fault, user_reported, congestion, chronic_undercapacity, underused, site_issue |
-| priority | safety_fault first; charger maintenance by driver reports; station issues by rm_at_risk; site_issue last |
+| unserved sessions | forecast arrivals above capacity in a slot, where capacity = `n_working` × 30 ÷ average charge time. An estimate, not customers seen leaving |
+| rm_at_risk | estimated revenue at risk: unserved sessions over the next 72 hours that fixing the issue would serve × `rm_per_session` |
+| issue types | safety_fault, degraded, connector_fault, user_reported, congestion, chronic_undercapacity, underused |
+| priority | safety_fault first; then every charger and station issue by rm_at_risk (ties: driver reports); underused last |
 | what-if | one decision, before vs after (fix now vs later, add chargers, discount) |
 | backtest | one replayed week: baseline (each fault lasts until its real repair day) vs ours (repair the day it is known, in action-list order) |
 

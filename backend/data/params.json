@@ -1,5 +1,4 @@
 {
   "avg_charge_min": 158.9,
-  "rm_per_session": 10.0,
-  "max_tolerable_wait_min": 45
+  "rm_per_session": 10.0
 }

@@ -1,3 +1,12 @@
+STATUS UPDATE 2026-10-11 (backend, contract v0.7; details in docs/backend_plan.md, Stage 6)
+-----------------------------------------------------------------------------------------
+Resolved: 2 station-to-charger discovery (GET /api/stations/{station_id}/chargers?time=),
+          3 overview energy, live sessions and uptime (GET /api/overview?time= now returns real totals),
+          6 backtest week registry (meta.backtest_weeks, and ?week= is honoured),
+          5 discount scenario (not offered with the live API; the backend still answers bad_request).
+Still open: 1 persistent action status, 4 saved scenarios and demo reset (both wait for Firestore).
+Changed since this note: max_tolerable_wait_min and site_issue no longer exist (contract v0.6).
+
 AmpWise — Backend Handoff: Remaining V2 Requirements
 =====================================================
 

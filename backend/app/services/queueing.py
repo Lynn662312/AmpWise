@@ -1,4 +1,10 @@
-"""M/M/c queueing: arrivals per 30-minute slot -> expected wait and lost sessions."""
+"""Arrivals per 30-minute slot -> expected wait (M/M/c queue) and sessions the chargers can serve.
+
+Two separate questions, answered separately:
+- How long is the queue?         predict_wait, shown on the dashboard and used to spot congestion.
+- How many sessions get served?  service_capacity, served_sessions, unserved_sessions: used for money.
+Money is never worked out from how long drivers wait.
+"""
 
 from math import factorial
 
@@ -39,11 +45,18 @@ def predict_wait(arrivals: float, avg_charge_min: float, working_chargers: int) 
     return round(min(wait, MAX_WAIT_MIN), 1)
 
 
-def lost_sessions(arrivals: float, wait_min: float, max_tolerable_min: float) -> float:
-    """Cars that give up because the wait is longer than they tolerate.
-
-    Assumption: the share that leaves grows with how far the wait exceeds the limit.
-    """
-    if wait_min <= max_tolerable_min:
+def service_capacity(avg_charge_min: float, working_chargers: int, slot_minutes: int = SLOT_MIN) -> float:
+    """Sessions the working chargers can serve in one slot: chargers x slot length / charge time."""
+    if working_chargers <= 0 or avg_charge_min <= 0:
         return 0.0
-    return round(arrivals * (1 - max_tolerable_min / wait_min), 1)
+    return working_chargers * slot_minutes / avg_charge_min
+
+
+def served_sessions(arrivals: float, avg_charge_min: float, working_chargers: int) -> float:
+    """Forecast arrivals the chargers can serve in one slot. A fraction is fine: it is a forecast."""
+    return min(max(arrivals, 0.0), service_capacity(avg_charge_min, working_chargers))
+
+
+def unserved_sessions(arrivals: float, avg_charge_min: float, working_chargers: int) -> float:
+    """Forecast arrivals above capacity in one slot: an estimate, not observed customers who left."""
+    return max(0.0, arrivals - service_capacity(avg_charge_min, working_chargers))

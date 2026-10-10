@@ -29,7 +29,7 @@ export function resolveStationName(stationId: string, stations: readonly Chargin
 }
 
 export function resolveStationLocation(stationId: string, stations: readonly ChargingStation[]) {
-  return stations.find(({ id }) => id === stationId)?.location ?? "Station location unavailable"
+  return stations.find(({ id }) => id === stationId)?.location ?? stationId
 }
 
 export function matchesAction(action: Action, search: string, issues: IssueType[], urgency: Urgency | "all", stations: readonly ChargingStation[]) {

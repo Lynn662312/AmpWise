@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -78,6 +79,27 @@ def _write_synth_files(synth_dir) -> None:
         columns=["fault_id", "station_id", "fault_type", "source", "onset", "end"],
     ).to_csv(synth_dir / "fault_ground_truth.csv", index=False)
 
+    # Energy per 30-minute slot and charging sessions (times in UTC; 15:00 UTC is 07:00 in California).
+    pd.DataFrame(
+        [
+            ("2019-12-12T20:00:00+00:00", "jpl/Arroyo_Garage_01", 10.0),  # 12 Dec, noon
+            ("2019-12-13T14:30:00+00:00", "caltech/S_Wilson_Garage_01", 2.5),  # 13 Dec, 06:30 to 07:00
+            ("2019-12-13T15:00:00+00:00", "caltech/S_Wilson_Garage_01", 4.0),  # 13 Dec, 07:00 to 07:30
+            ("2019-12-13T15:00:00+00:00", "caltech/N_Wilson_Garage_01", 99.0),  # site with no forecast
+            ("2019-11-01T15:00:00+00:00", "caltech/S_Wilson_Garage_01", 50.0),  # long before the forecast days
+        ],
+        columns=["timestamp", "site", "energy_kwh"],
+    ).assign(power_kw=0.0, split="test").to_csv(synth_dir / "site_load_30min.csv", index=False)
+    pd.DataFrame(
+        [
+            ("caltech/S_Wilson_Garage_01", "2019-12-13T14:00:00+00:00", "2019-12-13T18:00:00+00:00"),  # 06:00 to 10:00
+            ("jpl/Arroyo_Garage_01", "2019-12-13T16:00:00+00:00", "2019-12-13T20:00:00+00:00"),  # starts at 08:00
+            ("jpl/Arroyo_Garage_01", "2019-12-12T15:00:00+00:00", "2019-12-12T23:00:00+00:00"),  # the day before
+            ("caltech/N_Wilson_Garage_01", "2019-12-13T14:00:00+00:00", "2019-12-13T18:00:00+00:00"),  # no forecast
+        ],
+        columns=["site_path", "connectionTime", "disconnectTime"],
+    ).assign(kWhDelivered=5.0).to_csv(synth_dir / "acn_sessions.csv", index=False)
+
     # ML's cleaned feedback: keep = the comment is negative and not spam, whatever the star rating says.
     pd.DataFrame(
         [
@@ -131,8 +153,11 @@ def test_convert_ml_outputs(data_dir: str) -> None:
     assert data.meta["festive_periods"][0] == {
         "name": "Christmas", "start": "2019-12-25T00:00:00-08:00", "end": "2019-12-25T23:30:00-08:00",
     }
-    # Demo times: the busiest day and the Sunday before it, at the busiest hour (7am in this file).
-    assert [d["label"] for d in data.meta["demo_times"]] == ["Quiet Sunday", "Weekday morning rush"]
+    # Demo times, most interesting first, all at the busiest hour (7am in this file): the day with
+    # the safety fault, the busiest day and the Sunday before it. "Most chargers down" would be the
+    # same day as the safety fault here, so it is not listed twice.
+    assert data.meta["demo_times"][0] == {"label": "Safety faults", "time": "2019-12-13T07:00:00-08:00"}
+    assert [d["label"] for d in data.meta["demo_times"]] == ["Safety faults", "Weekday morning rush", "Quiet Sunday"]
     assert all(d["time"].endswith("T07:00:00-08:00") for d in data.meta["demo_times"])
 
 
@@ -162,10 +187,21 @@ def test_convert_sensor_log_faults_and_feedback(data_dir: str) -> None:
          "start_date": date(2019, 12, 15), "end_date": date(2019, 12, 17)},
     ]
 
-    # Driver feedback: complaints about the charger, and complaints about the bay, kept apart.
+    # Driver feedback: only complaints about the charger itself become reports. The blocked-bay,
+    # cleanliness and payment complaints on stn_001_c1 do not.
     assert list(data.user_reports["charger_id"]) == ["stn_002_c1", "stn_002_c1"]
-    assert list(data.site_reports["charger_id"]) == ["stn_001_c1", "stn_001_c1"]
+    assert list(data.user_reports.columns) == ["charger_id", "reported_at"]
     assert data.user_reports["reported_at"].iloc[0].isoformat() == "2019-12-15T10:00:00-08:00"
+
+    # Energy and sessions: ML's sites become our stations, times become California time,
+    # and the site without a forecast and the rows long before the forecast days are gone.
+    assert data.energy.to_dict("records") == [
+        {"station_id": "stn_002", "slot_start": pd.Timestamp("2019-12-12T12:00:00-08:00"), "energy_kwh": 10.0},
+        {"station_id": "stn_001", "slot_start": pd.Timestamp("2019-12-13T06:30:00-08:00"), "energy_kwh": 2.5},
+        {"station_id": "stn_001", "slot_start": pd.Timestamp("2019-12-13T07:00:00-08:00"), "energy_kwh": 4.0},
+    ]
+    assert list(data.sessions["station_id"]) == ["stn_001", "stn_002", "stn_002"]
+    assert data.sessions["started_at"].iloc[0].isoformat() == "2019-12-13T06:00:00-08:00"
 
     # Pie chart data: every row ML kept (all chargers, all dates); praise and spam are gone, "Other" stays.
     assert data.report_categories == [
@@ -207,15 +243,50 @@ def test_app_answers_on_converted_files(data_dir: str) -> None:
         health = client.get("/api/chargers/stn_001_c2/health", params={"time": during}).json()
         assert (health["status"], health["degraded_since"]) == ("safety_fault", "2019-12-12")
 
-        # Afterwards the charger is healthy again; the driver reports give two more actions.
+        # The station's charger list comes from the sensor data: two of its four chargers, with their status.
+        chargers = client.get("/api/stations/stn_001/chargers", params={"time": during}).json()
+        assert [(c["charger_id"], c["status"]) for c in chargers] == [
+            ("stn_001_c1", "healthy"), ("stn_001_c2", "safety_fault"),
+        ]
+        assert chargers[0]["power_kw"] == 6.7
+
+        # Overview at 07:00 on 13 Dec: only what has happened by then is counted.
+        overview = client.get("/api/overview", params={"time": during}).json()
+        assert overview["data_source"] == "api"
+        assert overview["energy_delivered_kwh"] == 2.5  # the 06:30 slot has ended, the 07:00 slot has not
+        assert [point["kwh"] for point in overview["energy_trend"][-2:]] == [10.0, 2.5]
+        assert overview["energy_delivered_week_kwh"] == 12.5
+        assert overview["live_sessions"] == 1  # plugged in since 06:00; the 08:00 session has not started
+        assert overview["network_uptime_pct"] == 83.3  # 12 charger-days this week, 2 with a fault
+        half_an_hour_later = client.get("/api/overview", params={"time": "2019-12-13T07:30:00-08:00"}).json()
+        assert half_an_hour_later["energy_delivered_kwh"] == 6.5
+
+        # Backtest weeks: the default first, then the Mondays inside the data.
+        weeks = [w["value"] for w in client.get("/api/meta").json()["backtest_weeks"]]
+        assert weeks == ["2019-12-11", "2019-12-16", "2019-12-23"]
+        assert client.get("/api/backtest", params={"week": "2019-12-16"}).json()["week_label"] == "Week of 16 Dec 2019"
+
+        # Afterwards the charger is healthy again; the reports about a charger give one more action.
         after = "2019-12-16T12:00:00-08:00"
         health = client.get("/api/chargers/stn_001_c2/health", params={"time": after}).json()
         assert (health["status"], health["degraded_since"]) == ("healthy", None)
         actions = {a["id"]: a for a in client.get("/api/actions", params={"time": after}).json()}
         assert actions["user_reported:stn_002:stn_002_c1"]["report_count"] == 2
-        site = actions["site_issue:stn_001:stn_001_c1"]
-        assert site["recommended_action"] == "Needs human action"
-        assert (site["report_count"], site["rm_at_risk"], site["deadline"]) == (2, 0.0, None)
-        assert site["rank"] == len(actions)  # site issues come last
+        # Complaints about the bay (blocked, dirty) no longer create an action.
+        assert not any(a["charger_id"] == "stn_001_c1" for a in actions.values())
+        assert not any(a["issue_type"] == "site_issue" for a in actions.values())
     finally:
         app.dependency_overrides.clear()
+
+
+def test_converted_params_have_no_tolerable_wait(data_dir: str) -> None:
+    assert data_loader.load_params(data_dir) == {"avg_charge_min": 184.0, "rm_per_session": 10.0}
+
+
+def test_committed_real_data_matches_the_contract() -> None:
+    """backend/data holds ML's real converted files; they must stay loadable."""
+    real_dir = str(Path(__file__).resolve().parents[1] / "data")
+    assert check(real_dir) == []
+    assert "max_tolerable_wait_min" not in data_loader.load_params(real_dir)
+    assert list(data_loader.load_user_reports(real_dir).columns) == ["charger_id", "reported_at"]
+    assert len(data_loader.load_energy(real_dir)) > 0 and len(data_loader.load_sessions(real_dir)) > 0

@@ -1,3 +1,7 @@
+> OUTDATED COPY (v0.4). The current contract is docs/api_contract.md (v0.7, 2026-10-11).
+> Since this copy: max_tolerable_wait_min and site_issue were removed, and /api/stations/{id}/chargers,
+> /api/overview?time= and meta.backtest_weeks were added.
+
 # AmpWise API Contract 
 
 > Lives at `AmpWise/docs/api_contract.md`.

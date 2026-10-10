@@ -4,10 +4,14 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from app.services.data_loader import DataStore
-from app.services.priority import build_action_list, score_issue
+from app.schemas import IssueType
+from app.services.priority import HORIZON_HOURS, build_action_list, score_issue, upcoming_slots
+from app.services.queueing import unserved_sessions
 
 MYT = timezone(timedelta(hours=8))
 NORMAL_TUESDAY = datetime(2026, 3, 17, 14, 0, tzinfo=MYT)
+AFTER_THE_PEAK = datetime(2026, 4, 1, 14, 0, tzinfo=MYT)  # chargers are still broken, demand is back to normal
+RM_PER_SESSION, CHARGE_MIN = 35.0, 38  # the dummy data's assumptions
 DAY_BEFORE_RAYA = datetime(2026, 3, 26, 14, 0, tzinfo=MYT)
 RAYA_PARAM = "2026-03-26T14:00:00+08:00"
 
@@ -19,30 +23,69 @@ def test_safety_fault_is_first_then_rm_descending(data: DataStore) -> None:
     assert [a["rank"] for a in actions] == list(range(1, len(actions) + 1))
 
 
-def test_order_is_safety_then_chargers_by_report_count_then_stations(data: DataStore) -> None:
+def test_order_is_safety_then_money_at_risk_then_underused(data: DataStore) -> None:
     actions = build_action_list(data, DAY_BEFORE_RAYA)
     assert [a["issue_type"] for a in actions] == [
-        "safety_fault", "degraded", "user_reported", "connector_fault",
-        "chronic_undercapacity", "congestion", "congestion", "congestion", "underused",
-        "site_issue",
+        "safety_fault",
+        "chronic_undercapacity", "user_reported", "degraded", "connector_fault",
+        "congestion", "congestion", "congestion",
+        "underused",
     ]
-    # Charger maintenance: most driver reports first (two have 3 here, so money decides), then 0 reports.
-    assert [a["report_count"] for a in actions[1:4]] == [3, 3, 0]
-    assert actions[1]["rm_at_risk"] > actions[2]["rm_at_risk"]
-    assert actions[1]["first_reported_at"] == datetime(2026, 3, 25, 10, tzinfo=MYT)
-    # Station issues: most money at risk first.
-    money = [a["rm_at_risk"] for a in actions[4:9]]
+    # After the safety fault, chargers and stations are one list: most money at risk first.
+    money = [a["rm_at_risk"] for a in actions[1:8]]
     assert money == sorted(money, reverse=True)
+    assert money[0] > money[3] > 0
+    # The safety fault is first although three items have more money at risk.
+    assert actions[0]["rm_at_risk"] < actions[3]["rm_at_risk"]
+    assert actions[-1]["rm_at_risk"] == 0.0
 
 
-def test_blocked_or_dirty_bay_is_a_site_issue_ranked_last(data: DataStore) -> None:
-    site = build_action_list(data, DAY_BEFORE_RAYA)[-1]
+def _unserved(data: DataStore, station_id: str, chargers: int) -> float:
+    """Estimated unserved sessions over the next 72 hours, worked out here from the forecast."""
+    slots = upcoming_slots(data, station_id, DAY_BEFORE_RAYA, HORIZON_HOURS)
+    return sum(unserved_sessions(arrivals, CHARGE_MIN, chargers) for arrivals in slots["arrivals"])
 
-    # stn_001_c2 works, but two drivers reported its bay; a technician cannot fix that.
-    assert site["id"] == "site_issue:stn_001:stn_001_c2"
-    assert site["recommended_action"] == "Needs human action"
-    assert (site["report_count"], site["rm_at_risk"], site["deadline"], site["urgency"]) == (2, 0.0, None, "low")
-    assert "2 drivers have reported a blocked or dirty bay since Wednesday 9am" in site["reason"]
+
+def test_rm_at_risk_follows_the_capacity_formula(data: DataStore) -> None:
+    actions = {a["id"]: a for a in build_action_list(data, DAY_BEFORE_RAYA)}
+
+    # Sensor fault (p_fault 0.86, 3 of 4 working): what one more working charger would serve.
+    at_risk = _unserved(data, "stn_003", 3) - _unserved(data, "stn_003", 4)
+    assert actions["degraded:stn_003:stn_003_c1"]["rm_at_risk"] == round(0.86 * at_risk * RM_PER_SESSION, 2)
+
+    # Driver-reported charger with healthy sensors (3 working): what is lost if it is really down.
+    at_risk = _unserved(data, "stn_002", 2) - _unserved(data, "stn_002", 3)
+    assert actions["user_reported:stn_002:stn_002_c4"]["rm_at_risk"] == round(at_risk * RM_PER_SESSION, 2)
+
+    # Station short of chargers: what is not served even with both installed chargers working.
+    at_risk = _unserved(data, "stn_004", 2)
+    assert actions["chronic_undercapacity:stn_004:-"]["rm_at_risk"] == round(at_risk * RM_PER_SESSION, 2)
+    assert f"estimated {at_risk:.1f} sessions are at risk" in actions["chronic_undercapacity:stn_004:-"]["reason"]
+
+    assert actions["underused:stn_001:-"]["rm_at_risk"] == 0.0
+
+
+def test_broken_charger_has_no_money_at_risk_when_the_others_can_serve_everyone(data: DataStore) -> None:
+    # After the peak the same charger is still broken, but three chargers cover the forecast demand.
+    assert _unserved_after_peak(data, "stn_003", 3) == 0.0
+    degraded = next(a for a in build_action_list(data, AFTER_THE_PEAK) if a["id"] == "degraded:stn_003:stn_003_c1")
+    assert degraded["rm_at_risk"] == 0.0
+    assert degraded["deadline"] is None
+    assert "sessions are at risk" not in degraded["reason"]
+
+    # Before the peak, demand is above what three chargers can serve.
+    assert _unserved(data, "stn_003", 3) > 0
+    degraded = next(a for a in build_action_list(data, DAY_BEFORE_RAYA) if a["id"] == "degraded:stn_003:stn_003_c1")
+    assert degraded["rm_at_risk"] > 0
+
+
+def _unserved_after_peak(data: DataStore, station_id: str, chargers: int) -> float:
+    slots = upcoming_slots(data, station_id, AFTER_THE_PEAK, HORIZON_HOURS)
+    return sum(unserved_sessions(arrivals, CHARGE_MIN, chargers) for arrivals in slots["arrivals"])
+
+
+def test_site_issue_no_longer_exists() -> None:
+    assert "site_issue" not in {issue_type.value for issue_type in IssueType}
 
 
 def test_charger_reported_by_drivers_but_not_by_sensors_gets_an_action(data: DataStore) -> None:
@@ -55,15 +98,19 @@ def test_charger_reported_by_drivers_but_not_by_sensors_gets_an_action(data: Dat
     assert "3 drivers have reported it since Wednesday 9am" in reported[0]["reason"]
 
 
-def test_more_driver_reports_rank_higher() -> None:
+def test_money_at_risk_ranks_above_driver_reports() -> None:
     charger = {"charger_id": "stn_001_c1"}
-    many = {**charger, "issue_type": "user_reported", "report_count": 5, "rm_at_risk": 10.0}
-    few = {**charger, "issue_type": "degraded", "report_count": 2, "rm_at_risk": 9000.0}
-    none = {**charger, "issue_type": "connector_fault", "report_count": 0, "rm_at_risk": 9000.0}
     safety = {**charger, "issue_type": "safety_fault", "report_count": 0, "rm_at_risk": 1.0}
-    station = {"charger_id": None, "issue_type": "congestion", "report_count": 0, "rm_at_risk": 50000.0}
-    site = {**charger, "issue_type": "site_issue", "report_count": 9, "rm_at_risk": 0.0}
-    assert sorted([site, station, none, few, many, safety], key=score_issue) == [safety, many, few, none, station, site]
+    costly = {**charger, "issue_type": "degraded", "report_count": 1, "rm_at_risk": 900.0}
+    station = {"charger_id": None, "issue_type": "congestion", "report_count": 0, "rm_at_risk": 500.0}
+    reported = {**charger, "issue_type": "user_reported", "report_count": 9, "rm_at_risk": 0.0}
+    quiet = {**charger, "issue_type": "connector_fault", "report_count": 2, "rm_at_risk": 0.0}
+    underused = {"charger_id": None, "issue_type": "underused", "report_count": 0, "rm_at_risk": 0.0}
+
+    # Safety first; then money at risk, whatever the number of reports; reports only break ties;
+    # underused stations after everything that can cost revenue.
+    ranked = sorted([underused, quiet, reported, station, costly, safety], key=score_issue)
+    assert ranked == [safety, costly, station, reported, quiet, underused]
 
 
 def test_driver_reports_support_a_sensor_fault(data: DataStore) -> None:
@@ -128,11 +175,37 @@ def test_charger_health_endpoint_uses_data(real_client: TestClient) -> None:
 def test_meta_endpoint_uses_data(real_client: TestClient) -> None:
     body = real_client.get("/api/meta").json()
     assert body["time_range"] == {"start": "2026-03-16T00:00:00+08:00", "end": "2026-04-05T23:30:00+08:00"}
+    # The wait-tolerance assumption is gone.
+    assert body["assumptions"] == {"rm_per_session": 35.0, "avg_charge_min": 38.0}
 
 
 def test_report_categories_endpoint_uses_data(real_client: TestClient, data: DataStore) -> None:
     assert real_client.get("/api/reports/categories").json() == data.report_categories
     assert len(data.report_categories) == 9
+
+
+def test_station_chargers_endpoint_lists_the_sensor_chargers_in_order(real_client: TestClient) -> None:
+    chargers = real_client.get("/api/stations/stn_003/chargers", params={"time": RAYA_PARAM}).json()
+    assert [c["charger_id"] for c in chargers] == ["stn_003_c1", "stn_003_c2", "stn_003_c3", "stn_003_c4"]
+    assert [c["status"] for c in chargers] == ["degraded", "healthy", "healthy", "healthy"]
+    assert chargers[0] == {"charger_id": "stn_003_c1", "station_id": "stn_003", "power_kw": 60.0, "status": "degraded"}
+
+    # Every id it returns is accepted by the charger health endpoint.
+    for charger in chargers:
+        health = real_client.get(f"/api/chargers/{charger['charger_id']}/health", params={"time": RAYA_PARAM})
+        assert health.status_code == 200
+    assert real_client.get("/api/stations/stn_999/chargers", params={"time": RAYA_PARAM}).status_code == 404
+
+
+def test_overview_without_session_files_is_empty_not_invented(real_client: TestClient) -> None:
+    # The dummy data has no energy or session files: the totals are zero, never sample numbers.
+    body = real_client.get("/api/overview", params={"time": RAYA_PARAM}).json()
+    assert body["data_source"] == "api"
+    assert (body["energy_delivered_kwh"], body["energy_delivered_week_kwh"], body["live_sessions"]) == (0.0, 0.0, 0)
+    assert [point["date"] for point in body["energy_trend"]] == [f"2026-03-{day}" for day in range(20, 27)]
+    # Uptime is real: 20 chargers over 7 days is 140 charger-days, 9 of them with a fault.
+    assert body["network_uptime_pct"] == 93.6
+    assert real_client.get("/api/overview").status_code == 400  # `time` is required
 
 
 def test_unknown_ids_are_not_found(real_client: TestClient) -> None:

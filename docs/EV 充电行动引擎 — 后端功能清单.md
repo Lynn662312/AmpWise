@@ -54,7 +54,8 @@ Action status makes the demo feel real: a judge clicks "Mark done", the charger 
 | --- | --- |
 | ★ `erlang_c(lam, mu, c)` | M/M/c：需要排队的概率 / probability of waiting |
 | ★ `predict_wait(arrivals, avg_charge_min, working_chargers)` | 到达量 → 预计等待分钟 / arrivals → expected wait (min) |
-| ★ `lost_sessions(arrivals, wait_min, max_tolerable_min)` | 等太久离开的车数 / cars that give up waiting |
+| ★ `service_capacity(avg_charge_min, working_chargers)` | 每个时段能服务的车数 = 可用桩数 × 30 ÷ 平均充电时长 / sessions the working chargers can serve per slot |
+| ★ `served_sessions(…)` / `unserved_sessions(…)` | 能服务 / 服务不了的预测车数（按容量算，不看等待时间）/ forecast sessions served / not served, from capacity, not from the wait（v0.6，取代 `lost_sessions` / replaces `lost_sessions`） |
 
 **`app/services/classifier.py` — 问题分类 / Issue classification**
 
@@ -67,7 +68,7 @@ Action status makes the demo feel real: a judge clicks "Mark done", the charger 
 
 | 函数 Function | 作用 Purpose |
 | --- | --- |
-| ★ `score_issue(issue)` | P(故障) × 高峰前损失会话 × 每次 RM；安全故障置顶 / P(fault) × lost sessions before peak × RM; safety always first |
+| ★ `score_issue(issue)` | 安全故障置顶；其余按预计风险收入从高到低，报修数作平手决胜；使用率低排最后 / safety first; the rest by estimated revenue at risk, driver reports break ties; underused last（v0.6） |
 | ★ `build_action_list(time, limit)` | 汇总、打分、排序 / collect, score, rank |
 | `recommend_action(issue_type)` | 问题类型 → 建议动作 / issue type → recommended action |
 
@@ -158,7 +159,7 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 | --- | --- | --- |
 | 训练好的模型 / Trained model | `ml/models/exported/congestion.pkl` | ML 1 |
 | 预先算好的预测 / Precomputed forecasts | `forecasts.parquet`: station\_id, slot\_start, arrivals, arrivals\_baseline, is\_festive | ML 1 |
-| 参数 / Parameters | `ml/configs/params.json`: 平均充电时长、每次 RM、容忍等待分钟 / avg charge time, RM per session, max tolerable wait | ML 1（RM 由团队定 / RM set by team） |
+| 参数 / Parameters | `params.json`: 平均充电时长、每次收入 / avg charge time, revenue per session（v0.6 起不再有容忍等待分钟 / no tolerable wait since v0.6） | ML 1（收入由团队定 / revenue set by team） |
 | 健康结果 / Health results | `health.parquet`: charger\_id, date, power\_ratio, baseline, status, p\_fault | ML 2 |
 | 故障真实答案 / Fault ground truth | `fault_labels.parquet`: charger\_id, fault\_type, start\_date | ML 2 |
 | 预处理 / Preprocessing | `ml/src/preprocessing/`，训练和推理用同一份 / same code for training and inference | ML 1 + ML 2 |
@@ -213,7 +214,10 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 - [x] 接入 ML 的真实数据（`ml/output/acn_synth/`：传感器日志、真实故障、司机反馈），转换后的文件在 `backend/data/` / ML's real data integrated (sensor log, real faults, driver feedback); converted files live in `backend/data/` — **已完成 Done**
 - [x] 回测按真实故障重做：基线 = 实际修好的日期（ML 的 `end`），我们 = 发现当天就修 / backtest reworked for the real faults: baseline = the real repair day (ML's `end`), ours = repair the day it is known — **已完成 Done**
 - [x] 饼图数据 `GET /api/reports/categories`：各类投诉的数量和百分比 / pie chart data: count and percentage of complaints per category — **已完成 Done**
-- [x] 新问题类型 `site_issue`：车位被占或脏，技术员修不了，排在清单最后 / new issue type `site_issue` (blocked or dirty bay, a technician cannot fix it), ranked last — **已完成 Done**
+- [x] v0.6：风险收入改按容量计算（预测到达量超过可用桩容量的部分 = 预计服务不了的车次），去掉"等 45 分钟就离开"的假设和 `max_tolerable_wait_min` / v0.6: revenue at risk now comes from capacity (forecast arrivals above what the working chargers can serve = estimated unserved sessions); the "drivers leave after 45 minutes" assumption and `max_tolerable_wait_min` are removed — **已完成 Done**
+- [x] v0.6：新排序：安全故障 → 按风险收入 → 使用率低；去掉 `site_issue`（车位被占或脏的投诉只进饼图）/ v0.6: new ranking: safety → revenue at risk → underused; `site_issue` removed (blocked or dirty bay complaints only count in the pie chart) — **已完成 Done**
+- [x] v0.7：前端不再需要样例数据：`GET /api/stations/{id}/chargers`（站内充电桩列表）、`GET /api/overview?time=`（真实的电量、在线车辆、可用率）、`meta.backtest_weeks`（可选回测周）/ v0.7: the frontend no longer needs sample data: charger list per station, real overview totals, selectable backtest weeks — **已完成 Done**
+- [x] 后端已部署到 Render / backend deployed on Render — **已完成 Done**（推送后才会更新到最新代码 / it updates to the latest code after a push）
 - [ ] （可选）`app/firebase/`：`actions_status` 读写 + `PATCH /api/actions/{id}/status` / (optional) Firestore action status
 - [ ] 部署到 Render，环境变量放 Firebase 凭证 / deploy to Render, Firebase credentials in env vars
 - [ ] 和前端一起跑完整演示两次 / run the full demo twice with the frontend
@@ -261,7 +265,7 @@ def assess_chargers(as_of: datetime) -> pd.DataFrame:
 ## 待确认问题 / Open questions
 
 - [ ] 走廊选 KL–Penang 还是 KL–JB？/ Which corridor: KL–Penang or KL–JB?
-- [ ] "等太久离开"阈值多少分钟？建议 45，标明是假设 / Max tolerable wait? Suggest 45 min, labelled as an assumption
+- [x] "等太久离开"阈值：v0.6 起不再需要，损失按容量算 / Max tolerable wait: no longer needed since v0.6; loss is calculated from capacity
 - [ ] 每次充电收入假设多少 RM？/ Assumed RM per charging session?
 - [ ] 做不做登录和 "Mark done"？建议时间够才做 / Build login and "Mark done"? Only if time allows
 - [ ] 预测预先算好还是实时调模型？建议预先算好，演示更稳 / Precompute forecasts or call the model live? Suggest precompute for a stable demo

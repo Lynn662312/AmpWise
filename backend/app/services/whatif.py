@@ -17,20 +17,24 @@ def _compare(
     before = outlook(data, slots, chargers_before)
     after = outlook(data, slots, chargers_after)
 
-    # Revenue = sessions that actually charge (arrivals minus the cars that give up).
-    arrivals = float(slots["arrivals"].sum())
+    # Revenue = the sessions the chargers can serve x revenue per session. The wait plays no part in it.
     rm_per_session = data.params["rm_per_session"]
-    before_revenue = (arrivals - before["lost"]) * rm_per_session
-    after_revenue = (arrivals - after["lost"]) * rm_per_session
+    before_revenue = before["served"] * rm_per_session
+    after_revenue = after["served"] * rm_per_session
+    more_served = round(after["served"] - before["served"], 1)
 
-    if before == after:
-        summary = f"{what} does not change the queue over the next {HORIZON_HOURS} hours."
-    else:
-        summary = (
-            f"{what} cuts the peak wait over the next {HORIZON_HOURS} hours from "
-            f"{before['peak_wait_min']:.0f} to {after['peak_wait_min']:.0f} minutes and protects about "
-            f"{data.meta['currency']} {after_revenue - before_revenue:,.0f}."
+    changes = []
+    if after["peak_wait_min"] != before["peak_wait_min"]:
+        changes.append(f"cuts the peak wait from {before['peak_wait_min']:.0f} to {after['peak_wait_min']:.0f} minutes")
+    if more_served > 0:
+        changes.append(
+            f"serves an estimated {more_served:.1f} more sessions "
+            f"(about {data.meta['currency']} {after_revenue - before_revenue:,.0f} of estimated revenue at risk)"
         )
+    if changes:
+        summary = f"{what} {' and '.join(changes)} over the next {HORIZON_HOURS} hours."
+    else:
+        summary = f"{what} does not change the queue or the sessions served over the next {HORIZON_HOURS} hours."
     return {
         "before_wait_min": before["peak_wait_min"],
         "after_wait_min": after["peak_wait_min"],
