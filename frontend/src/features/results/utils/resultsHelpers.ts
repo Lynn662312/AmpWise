@@ -1,17 +1,5 @@
 import type { BacktestResult } from "@/features/results/types"
-
-export function formatRm(value: number) {
-  return `RM ${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 0 }).format(value)}`
-}
-
-export function formatNumber(value: number, maximumFractionDigits = 1) {
-  return new Intl.NumberFormat("en-MY", { maximumFractionDigits }).format(value)
-}
-
-export function formatPercent(value: number) {
-  const percent = value <= 1 ? value * 100 : value
-  return `${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 0 }).format(percent)}%`
-}
+export { formatNumber, formatPercent, formatRm } from "@/lib/formatters"
 
 export function getImpactMessage(result: BacktestResult) {
   if (result.queue_minutes_saved > 0 || result.rm_protected > 0) return "AmpWise reduced estimated waiting time in this evaluation."

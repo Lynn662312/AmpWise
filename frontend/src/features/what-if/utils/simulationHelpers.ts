@@ -1,8 +1,5 @@
 import type { SimulationResponse, WhatIfRequest } from "@/features/what-if/types"
-
-export function formatRm(value: number) {
-  return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR", maximumFractionDigits: 0 }).format(value)
-}
+export { formatRm } from "@/lib/formatters"
 
 export function formatApiTime(minutes: number) {
   const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date())

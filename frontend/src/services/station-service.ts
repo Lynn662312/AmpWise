@@ -1,14 +1,7 @@
 import { getMockStations } from "@/data/mockStations"
 import { getMapData, postMapData, type MapStationInput } from "@/services/map-service"
 import type { ChargingStation, StationForecast } from "@/features/map/types"
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000"
-
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, { signal: AbortSignal.timeout(3500) })
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-  return response.json() as Promise<T>
-}
+import { fetchJson, isApiMode } from "@/services/api-client"
 
 export async function fetchStations(timeMinutes: number): Promise<{ stations: ChargingStation[]; source: "api" | "mock" }> {
   const { stations, source } = await getMapData(timeMinutes)
@@ -18,10 +11,7 @@ export async function fetchStations(timeMinutes: number): Promise<{ stations: Ch
 export { postMapData }
 export type { MapStationInput }
 
-export async function fetchStationForecast(stationId: string, timeMinutes: number): Promise<StationForecast[]> {
-  try {
-    return await getJson<StationForecast[]>(`/api/stations/${encodeURIComponent(stationId)}/forecast?time=${encodeURIComponent(String(timeMinutes))}`)
-  } catch {
-    return getMockStations(timeMinutes).find(({ id }) => id === stationId)?.forecast ?? []
-  }
+export async function fetchStationForecast(stationId: string, start: string, hours = 2, timeMinutes = 480): Promise<StationForecast[]> {
+  if (!isApiMode) return getMockStations(timeMinutes).find(({ id }) => id === stationId)?.forecast ?? []
+  return fetchJson<StationForecast[]>(`/api/stations/${encodeURIComponent(stationId)}/forecast?start=${encodeURIComponent(start)}&hours=${encodeURIComponent(String(hours))}`)
 }

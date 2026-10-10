@@ -1,9 +1,9 @@
 import { getMockStations } from "@/data/mockStations"
 import type { ChargingStation } from "@/features/map/types"
 import type { RepairTiming, SimulationResponse, WhatIfRequest, WhatIfResult } from "@/features/what-if/types"
+import { fetchJson, isApiMode } from "@/services/api-client"
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000"
-export const isWhatIfMockMode = import.meta.env.VITE_DATA_SOURCE !== "api"
+export const isWhatIfMockMode = !isApiMode
 
 export type SimulationInput = WhatIfRequest & { repair_timing?: RepairTiming }
 
@@ -43,7 +43,5 @@ function simulateLocally(input: SimulationInput, stations: ChargingStation[]): W
 export async function postWhatIf(input: SimulationInput, timeMinutes: number): Promise<SimulationResponse> {
   if (isWhatIfMockMode) return { ...simulateLocally(input, getMockStations(timeMinutes)), source: "mock" }
   const { repair_timing: _repairTiming, ...request } = input
-  const response = await fetch(`${apiBaseUrl}/api/whatif`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.timeout(6000) })
-  if (!response.ok) throw new Error(`What-if simulation failed: ${response.status}`)
-  return { ...await response.json() as WhatIfResult, source: "api" }
+  return { ...await fetchJson<WhatIfResult>("/api/whatif", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) }), source: "api" }
 }

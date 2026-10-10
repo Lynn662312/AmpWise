@@ -71,12 +71,13 @@
 .leaflet-control-attribution a { color: var(--primary); }
 .station-marker-icon { background: transparent; border: 0; }
 .station-marker { display: grid; width: 38px; height: 38px; place-items: center; border: 3px solid var(--card); border-radius: 999px 999px 999px 4px; background: var(--station-marker-bg); color: var(--station-marker-foreground); box-shadow: 0 5px 15px color-mix(in srgb, var(--primary) 25%, transparent); transform: rotate(-45deg); transition: transform 180ms ease, box-shadow 180ms ease; }
-.station-marker svg { width: 18px; height: 18px; transform: rotate(45deg); }
+.station-marker svg { width: 24px; height: 24px; transform: rotate(45deg); }
 .station-marker--low { --station-marker-bg: var(--success); --station-marker-foreground: var(--primary-foreground); }
 .station-marker--moderate { --station-marker-bg: var(--warning); --station-marker-foreground: var(--primary-foreground); }
 .station-marker--high { --station-marker-bg: var(--destructive); --station-marker-foreground: var(--primary-foreground); }
 .station-marker--unavailable { --station-marker-bg: var(--muted-foreground); --station-marker-foreground: var(--background); }
 .station-marker--selected { width: 46px; height: 46px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 24%, transparent), 0 8px 20px color-mix(in srgb, var(--primary) 28%, transparent); }
+.station-marker--selected svg { width: 28px; height: 28px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }

@@ -1,11 +1,8 @@
 import type { Action, IssueType, Urgency } from "@/features/actions/types"
 import type { ChargingStation } from "@/features/map/types"
+export { formatRm } from "@/lib/formatters"
 
 export const urgencyOrder: Record<Urgency, number> = { critical: 0, high: 1, medium: 2, low: 3 }
-
-export function formatRm(value: number) {
-  return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR", maximumFractionDigits: 0 }).format(value)
-}
 
 export function formatDeadline(deadline: string | null) {
   if (!deadline) return "No fixed deadline"

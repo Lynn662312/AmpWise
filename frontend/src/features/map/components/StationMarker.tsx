@@ -1,12 +1,16 @@
 import { useMemo } from "react"
 import { Marker } from "react-leaflet"
+import { renderToStaticMarkup } from "react-dom/server"
 import L from "leaflet"
 import type { ChargingStation } from "@/features/map/types"
 import { getLevelClass } from "@/features/map/utils/mapHelpers"
+import { EvChargerIcon } from "@/components/icons/EvChargerIcon"
+
+const CHARGER_ICON_HTML = renderToStaticMarkup(<EvChargerIcon />)
 
 function markerHtml(level: ChargingStation["level"], selected: boolean) {
   const selectedClass = selected ? "station-marker--selected" : ""
-  return `<span class="station-marker ${getLevelClass(level)} ${selectedClass}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span>`
+  return `<span class="station-marker ${getLevelClass(level)} ${selectedClass}">${CHARGER_ICON_HTML}</span>`
 }
 
 export function StationMarker({ station, selected, onSelect }: { station: ChargingStation; selected: boolean; onSelect: () => void }) {

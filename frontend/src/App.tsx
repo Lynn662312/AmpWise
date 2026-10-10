@@ -6,6 +6,7 @@ import { EvStationIcon } from "@/components/icons/EvStationIcon"
 import { PlugIcon } from "@/components/icons/PlugIcon"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { MetricCard } from "@/components/common/MetricCard"
 import { useTheme } from "@/theme/ThemeProvider"
 import { cn } from "@/lib/utils"
 import { MapPage } from "@/features/map/MapPage"
@@ -13,6 +14,11 @@ import { useSimulatedTime } from "@/context/TimeContext"
 import { ActionsPage } from "@/features/actions/ActionsPage"
 import { WhatIfPage } from "@/features/what-if/WhatIfPage"
 import { ResultsPage } from "@/features/results/ResultsPage"
+import { StationDetailPage } from "@/features/stations/StationDetailPage"
+import { ChargerHealthPage } from "@/features/chargers/ChargerHealthPage"
+import { PresentationMenu } from "@/features/demo/components/PresentationMenu"
+import { DemoStepControls } from "@/features/demo/components/DemoStepControls"
+import { useDemoMode } from "@/features/demo/context/DemoContext"
 
 const trendData = [
   { day: "Mon", energy: 31 }, { day: "Tue", energy: 46 }, { day: "Wed", energy: 40 },
@@ -43,10 +49,11 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const { selectedTime, setSelectedTime, timeLabel } = useSimulatedTime()
+  const { presentationMode } = useDemoMode()
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className={cn("fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col bg-sidebar px-5 py-6 text-sidebar-foreground transition-transform lg:translate-x-0", sidebarOpen && "translate-x-0")}>
+      <aside className={cn("fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col bg-sidebar px-5 py-6 text-sidebar-foreground transition-transform lg:translate-x-0", sidebarOpen && "translate-x-0", presentationMode && "lg:-translate-x-full")}>
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><Bolt size={19} fill="currentColor" /></span><span className="text-lg font-bold tracking-tight">ampwise</span></div>
           <button className="rounded-lg p-1 text-sidebar-foreground/70 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
@@ -61,13 +68,14 @@ function AppShell() {
         </div>
       </aside>
       {sidebarOpen && <button className="fixed inset-0 z-20 bg-primary/30 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation overlay" />}
-      <main className="lg:pl-64">
+      <main className={cn("transition-[padding] duration-200", !presentationMode && "lg:pl-64")}>
         <header className="flex h-20 items-center justify-between border-b border-border/70 px-5 sm:px-8 lg:px-12">
           <button className="rounded-xl p-2 hover:bg-muted lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={21} /></button>
           <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} /><span>Malaysia Operations</span><ChevronRight size={14} /><span className="font-semibold text-foreground">Today</span></div>
-          <div className="ml-auto flex items-center gap-2"><label className="hidden items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground md:flex">Simulated time <input type="range" min="0" max="1439" step="30" value={selectedTime} onChange={(event) => setSelectedTime(Number(event.target.value))} className="w-28 accent-[var(--accent)]" aria-label="Simulated time" /><span className="min-w-14 text-right text-foreground">{timeLabel}</span></label><button className="hidden rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground sm:block" aria-label="Search"><Search size={19} /></button><button className="relative rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Notifications"><Bell size={19} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" /></button><button className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button></div>
+          <div className="ml-auto flex items-center gap-2"><label className="hidden items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground md:flex">Simulated time <input type="range" min="0" max="1439" step="30" value={selectedTime} onChange={(event) => setSelectedTime(Number(event.target.value))} className="w-28 accent-[var(--accent)]" aria-label="Simulated time" /><span className="min-w-14 text-right text-foreground">{timeLabel}</span></label><PresentationMenu /><button className="hidden rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground sm:block" aria-label="Search"><Search size={19} /></button><button className="relative rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Notifications"><Bell size={19} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" /></button><button className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button></div>
         </header>
-        <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-12"><Routes><Route path="/map" element={<MapPage />} /><Route path="/actions" element={<ActionsPage />} /><Route path="/what-if" element={<WhatIfPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="*" element={<Dashboard />} /></Routes></div>
+        <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-12"><Routes><Route path="/map" element={<MapPage />} /><Route path="/actions" element={<ActionsPage />} /><Route path="/what-if" element={<WhatIfPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/stations/:id" element={<StationDetailPage />} /><Route path="/chargers/:id" element={<ChargerHealthPage />} /><Route path="*" element={<Dashboard />} /></Routes></div>
+        <DemoStepControls />
       </main>
     </div>
   )
@@ -77,10 +85,10 @@ function Dashboard() {
   return <div className="space-y-8">
     <section className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-sm font-medium text-muted-foreground">Saturday, 10 October 2026</p><h1 className="font-display text-5xl font-semibold tracking-tight sm:text-6xl">Good morning, Aiman<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">Here’s your network pulse. Keep the charge moving.</p></div><Button variant="soft"><CalendarDays size={16} />Schedule report</Button></section>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard icon={<Bolt />} label="Energy delivered" value="1,284" unit="kWh" change="+12.8%" detail="vs. last week" />
-      <MetricCard icon={<EvStationIcon />} label="Active stations" value="18" unit="/ 24" change="75%" detail="network availability" />
-      <MetricCard icon={<PlugIcon />} label="Live sessions" value="42" unit="cars" change="+8" detail="since 06:00 today" />
-      <MetricCard icon={<Gauge />} label="Network uptime" value="99.2" unit="%" change="Healthy" detail="last 30 days" />
+      <MetricCard icon={<Bolt size={20} />} label="Energy delivered" value={1284} suffix=" kWh" description="vs. last week" trailing={<span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">+12.8%</span>} />
+      <MetricCard icon={<EvStationIcon size={20} />} label="Active stations" value={18} suffix=" / 24" description="network availability" trailing={<span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">75%</span>} />
+      <MetricCard icon={<PlugIcon width={20} height={20} />} label="Live sessions" value={42} suffix=" cars" description="since 06:00 today" trailing={<span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">+8</span>} />
+      <MetricCard icon={<Gauge size={20} />} label="Network uptime" value={99.2} decimals={1} suffix="%" description="last 30 days" trailing={<span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Healthy</span>} />
     </section>
     <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
       <Card className="min-h-[355px] p-5 sm:p-7"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-muted-foreground">Energy delivered</p><div className="mt-2 flex items-end gap-2"><h2 className="font-display text-5xl font-semibold">8,492</h2><span className="mb-1 text-sm text-muted-foreground">kWh this week</span></div></div><button className="rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted">Last 7 days <ChevronRight className="ml-1 inline" size={14} /></button></div><div className="mt-8 h-48"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trendData}><defs><linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} dy={9} /><YAxis hide domain={[0, 90]} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }} /><Area type="monotone" dataKey="energy" stroke="var(--accent)" strokeWidth={3} fill="url(#energyFill)" /></AreaChart></ResponsiveContainer></div></Card>
@@ -88,10 +96,6 @@ function Dashboard() {
     </section>
     <section className="grid gap-5 xl:grid-cols-[1.45fr_1fr]"><Card className="p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Station performance</h2><p className="mt-1 text-sm text-muted-foreground">A quick look at your busiest locations</p></div><Button variant="ghost" className="px-2 text-xs">View all <ChevronRight size={14} /></Button></div><div className="space-y-2">{stations.map((station) => <StationRow key={station.name} {...station} />)}</div></Card><QuickActions /></section>
   </div>
-}
-
-function MetricCard({ icon, label, value, unit, change, detail }: { icon: React.ReactNode; label: string; value: string; unit: string; change: string; detail: string }) {
-  return <Card className="p-5"><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-xl bg-muted text-primary"><span className="[&>svg]:h-5 [&>svg]:w-5">{icon}</span></span><span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-primary">{change}</span></div><p className="mt-5 text-sm text-muted-foreground">{label}</p><div className="mt-1 flex items-baseline gap-1.5"><span className="font-display text-4xl font-semibold">{value}</span><span className="text-sm font-medium text-muted-foreground">{unit}</span></div><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Card>
 }
 
 function StationRow({ name, area, status, ports, load, tone }: (typeof stations)[number]) {

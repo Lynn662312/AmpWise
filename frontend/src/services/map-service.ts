@@ -1,7 +1,6 @@
 import { getMapSeedData, getMockStations, saveMapSeed } from "@/data/mockStations"
 import type { ChargingStation } from "@/features/map/types"
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000"
+import { fetchJson, isApiMode } from "@/services/api-client"
 
 export type MapStationInput = {
   id: string
@@ -16,22 +15,11 @@ export type MapStationInput = {
 }
 
 export async function getMapData(timeMinutes: number): Promise<{ stations: ChargingStation[]; source: "api" | "mock"; corridor: string }> {
-  try {
-    const response = await fetch(`${apiBaseUrl}/api/stations?time=${encodeURIComponent(String(timeMinutes))}`, { signal: AbortSignal.timeout(3500) })
-    if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-    return { stations: await response.json() as ChargingStation[], source: "api", corridor: getMapSeedData().corridor }
-  } catch {
-    const { corridor } = getMapSeedData()
-    return { stations: getMockStations(timeMinutes), source: "mock", corridor }
-  }
+  if (!isApiMode) return { stations: getMockStations(timeMinutes), source: "mock", corridor: getMapSeedData().corridor }
+  return { stations: await fetchJson<ChargingStation[]>(`/api/stations?time=${encodeURIComponent(String(timeMinutes))}`), source: "api", corridor: getMapSeedData().corridor }
 }
 
 export async function postMapData(station: MapStationInput): Promise<{ station: MapStationInput; source: "api" | "local" }> {
-  try {
-    const response = await fetch(`${apiBaseUrl}/api/stations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(station), signal: AbortSignal.timeout(3500) })
-    if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-    return { station: await response.json() as MapStationInput, source: "api" }
-  } catch {
-    return { station: saveMapSeed(station), source: "local" }
-  }
+  if (!isApiMode) return { station: saveMapSeed(station), source: "local" }
+  return { station: await fetchJson<MapStationInput>("/api/stations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(station) }), source: "api" }
 }
