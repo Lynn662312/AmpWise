@@ -24,3 +24,16 @@ export function getLevelLabel(level: StationLevel) {
 export function getLevelClass(level: StationLevel) {
   return { low: "station-marker--low", moderate: "station-marker--moderate", high: "station-marker--high", unavailable: "station-marker--unavailable" }[level]
 }
+
+export function isValidWait(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value)
+}
+
+export function formatWaitMinutes(value: number | null | undefined) {
+  if (!isValidWait(value)) return "Prediction unavailable"
+  return `${formatWaitValue(value)} min predicted wait`
+}
+
+export function formatWaitValue(value: number | null | undefined) {
+  return isValidWait(value) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value) : "—"
+}

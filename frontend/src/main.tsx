@@ -1,6 +1,7 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ApiRequestError } from "@/services/api-client"
 import App from "./App"
 import { ThemeProvider } from "@/theme/ThemeProvider"
 import { TimeProvider } from "@/context/TimeContext"
@@ -20,6 +21,12 @@ const setIcon = (rel: "icon" | "apple-touch-icon") => {
 setIcon("icon")
 setIcon("apple-touch-icon")
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => error instanceof ApiRequestError && error.status >= 400 && error.status < 500 ? false : failureCount < 2,
+    },
+  },
+})
 
 createRoot(document.getElementById("root")!).render(<StrictMode><QueryClientProvider client={queryClient}><ThemeProvider><TimeProvider><DemoProvider><NotificationProvider><App /></NotificationProvider></DemoProvider></TimeProvider></ThemeProvider></QueryClientProvider></StrictMode>)

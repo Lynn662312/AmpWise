@@ -11,7 +11,7 @@ import { StationDetailDrawer } from "@/features/map/components/StationDetailDraw
 import { StationList } from "@/features/map/components/StationList"
 import { useMapStations } from "@/features/map/hooks/useMapStations"
 import type { StationFilter } from "@/features/map/types"
-import { filterStations } from "@/features/map/utils/mapHelpers"
+import { filterStations, isValidWait } from "@/features/map/utils/mapHelpers"
 import { cn } from "@/lib/utils"
 
 export function MapPage() {
@@ -28,8 +28,8 @@ export function MapPage() {
   const workingChargers = stations.reduce((sum, station) => sum + (station.n_working ?? 0), 0)
   const hasOperationalData = stations.some((station) => station.n_working !== null)
   const highCongestion = stations.filter(({ level }) => level === "high").length
-  const waitStations = stations.filter(({ predicted_wait_min }) => predicted_wait_min !== null)
-  const averageWait = waitStations.length ? Math.round(waitStations.reduce((sum, station) => sum + (station.predicted_wait_min ?? 0), 0) / waitStations.length) : 0
+  const waitValues = stations.map(({ predicted_wait_min }) => predicted_wait_min).filter(isValidWait)
+  const averageWait = waitValues.length ? Math.round(waitValues.reduce((sum, value) => sum + value, 0) / waitValues.length) : null
   const closeStation = useCallback((open: boolean) => { if (!open) setSelectedId(null) }, [])
   const handleFilterChange = useCallback((next: StationFilter) => {
     setFilter(next)
@@ -61,7 +61,7 @@ export function MapPage() {
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-success" /><AnimatedNumber value={stations.length} /> stations</span>
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-primary" />{hasOperationalData ? <AnimatedNumber value={workingChargers} /> : "Data unavailable"} working chargers</span>
       <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-warning" />{hasOperationalData ? <AnimatedNumber value={highCongestion} /> : "Data unavailable"} high congestion</span>
-      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-info" />{waitStations.length ? <AnimatedNumber value={averageWait} suffix=" min" /> : "Data unavailable"} average wait</span>
+      <span className="shrink-0 rounded-full bg-card px-3 py-2 shadow-sm"><span className="mr-1.5 inline-block size-2 rounded-full bg-info" />{averageWait === null ? "Prediction unavailable" : <AnimatedNumber value={averageWait} suffix=" min" />} average wait</span>
     </div>
 
     <section className="relative grid min-h-[min(76vh,780px)] gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]">

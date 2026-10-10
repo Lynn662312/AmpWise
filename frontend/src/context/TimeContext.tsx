@@ -1,13 +1,19 @@
 import { useQuery } from "@tanstack/react-query"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { dataService } from "@/services/dataService"
 import { configureSimulation, isoAtMinutesOfSelectedDay } from "@/lib/simulationConfig"
+import { isApiMode } from "@/services/api-client"
+import type { ApiMeta } from "@/types/api"
 
 type TimeContextValue = {
   selectedTime: number
   selectedIsoTime: string
   timeLabel: string
+  isReady: boolean
+  timeError: string | null
+  demoTimes: ApiMeta["demo_times"]
   setSelectedTime: (minutes: number) => void
+  selectDemoTime: (time: string) => void
 }
 
 const TimeContext = createContext<TimeContextValue | null>(null)
@@ -29,30 +35,55 @@ function supportedMinutes(value: string, start: string, end: string) {
   return Number.isNaN(timestamp) || timestamp < Date.parse(start) || timestamp > Date.parse(end) ? null : minutesFromIso(value)
 }
 
+function validateCaliforniaMeta(meta: { corridor_name: string; currency: string; timezone?: string }) {
+  const descriptor = `${meta.corridor_name} ${meta.timezone ?? ""}`.toLowerCase()
+  if (meta.currency.toUpperCase() !== "USD" || /malaysia|malaysian|kuala lumpur|penang|asia\/kuala_lumpur|plus e1/.test(descriptor)) {
+    return "Backend metadata is not configured for the California/US dataset. Set the backend data mode to the California dataset before loading station data."
+  }
+  return null
+}
+
 export function TimeProvider({ children }: { children: ReactNode }) {
-  const [selectedTime, setSelectedTime] = useState(8 * 60)
-  const [selectedIsoTime, setSelectedIsoTime] = useState(() => "2019-12-01T08:00:00-08:00")
+  const [selectedTime, setSelectedTime] = useState(0)
+  const [selectedIsoTime, setSelectedIsoTime] = useState("")
   const initialized = useRef(false)
-  const { data: meta } = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => dataService.getMeta(signal), staleTime: Infinity, refetchOnWindowFocus: false })
+  const { data: meta, error: metaQueryError } = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => dataService.getMeta(signal), staleTime: Infinity, refetchOnWindowFocus: false, retry: false })
 
   useEffect(() => {
     if (!meta || initialized.current) return
-    configureSimulation(meta)
-    const nextTime = meta.demo_times.map(({ time }) => supportedMinutes(time, meta.time_range.start, meta.time_range.end)).find((value): value is number => value !== null)
-    if (nextTime !== undefined) {
-      const demoTime = meta.demo_times.find(({ time }) => supportedMinutes(time, meta.time_range.start, meta.time_range.end) === nextTime)?.time
-      setSelectedTime(nextTime)
-      if (demoTime) setSelectedIsoTime(demoTime)
+    const metadataError = isApiMode ? validateCaliforniaMeta(meta) : null
+    if (metadataError) {
+      initialized.current = true
+      return
     }
+    configureSimulation(meta)
+    const supportedDemo = meta.demo_times.find(({ time }) => supportedMinutes(time, meta.time_range.start, meta.time_range.end) !== null)
+    const initialIso = supportedDemo?.time ?? meta.time_range.start
+    const initialMinutes = minutesFromIso(initialIso)
+    if (initialMinutes === null) return
+    setSelectedTime(initialMinutes)
+    setSelectedIsoTime(initialIso)
     initialized.current = true
   }, [meta])
 
-  const updateSelectedTime = (minutes: number) => {
+  const updateSelectedTime = useCallback((minutes: number) => {
+    if (!selectedIsoTime) return
     setSelectedTime(minutes)
     setSelectedIsoTime((current) => isoAtMinutesOfSelectedDay(current, minutes))
-  }
+  }, [selectedIsoTime])
 
-  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: formatTime(selectedTime), setSelectedTime: updateSelectedTime }), [selectedIsoTime, selectedTime])
+  const selectDemoTime = useCallback((time: string) => {
+    if (!meta || supportedMinutes(time, meta.time_range.start, meta.time_range.end) === null) return
+    const minutes = minutesFromIso(time)
+    if (minutes === null) return
+    setSelectedTime(minutes)
+    setSelectedIsoTime(time)
+  }, [meta])
+
+  const metadataError = meta && isApiMode ? validateCaliforniaMeta(meta) : null
+  const timeError = metadataError ?? (metaQueryError instanceof Error ? metaQueryError.message : metaQueryError ? "Simulated-time metadata is unavailable." : null)
+  const demoTimes = meta?.demo_times ?? []
+  const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: selectedIsoTime ? formatTime(selectedTime) : "Loading…", isReady: Boolean(meta && selectedIsoTime && !timeError), timeError, demoTimes, setSelectedTime: updateSelectedTime, selectDemoTime }), [demoTimes, meta, selectDemoTime, selectedIsoTime, selectedTime, timeError, updateSelectedTime])
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>
 }
 

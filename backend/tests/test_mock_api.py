@@ -87,6 +87,15 @@ def test_report_categories(client: TestClient) -> None:
     assert round(sum(c["percentage"] for c in res.json())) == 100
 
 
+def test_overview_placeholder(client: TestClient) -> None:
+    res = client.get("/api/overview")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["data_source"] == "placeholder"
+    assert body["energy_delivered_kwh"] == 1284.0
+    assert len(body["energy_trend"]) == 7
+
+
 def test_missing_time_is_bad_request(client: TestClient) -> None:
     res = client.get("/api/stations")
     assert res.status_code == 400

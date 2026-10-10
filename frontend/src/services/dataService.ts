@@ -6,6 +6,8 @@ import { fetchApiHealth, fetchMeta } from "@/services/system-service"
 import { getMockMeta, getMockSessions } from "@/services/mockService"
 import { isApiMode } from "@/services/api-client"
 import { postWhatIf, type SimulationInput } from "@/services/what-if-service"
+import { fetchReportCategories } from "@/services/report-service"
+import { fetchOverview } from "@/services/overview-service"
 
 export const dataService = {
   getStations: fetchStations,
@@ -17,6 +19,8 @@ export const dataService = {
   getSessions: async () => getMockSessions(),
   getMeta: (signal?: AbortSignal) => isApiMode ? fetchMeta(signal) : Promise.resolve(getMockMeta()),
   getHealth: fetchApiHealth,
+  getReportCategories: fetchReportCategories,
+  getOverview: fetchOverview,
 }
 
 export type { SimulationInput }
