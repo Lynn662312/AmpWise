@@ -72,3 +72,9 @@ export type ApiChargerHealth = {
 }
 
 export type ApiBacktestResult = BacktestResult
+
+export type ApiReportCategory = {
+  category: string
+  count: number
+  percentage: number
+}

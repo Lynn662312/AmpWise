@@ -1,4 +1,4 @@
-import { getMapData, postMapData, type MapStationInput } from "@/services/map-service"
+import { getMapData } from "@/services/map-service"
 import type { ChargingStation, StationForecast } from "@/features/map/types"
 import { fetchJson, isApiMode } from "@/services/api-client"
 import { getMockStations } from "@/services/mockService"
@@ -8,9 +8,6 @@ export async function fetchStations(timeMinutes: number, timeIso?: string, signa
   const { stations, source } = await getMapData(timeMinutes, timeIso, signal)
   return { stations, source }
 }
-
-export { postMapData }
-export type { MapStationInput }
 
 export async function fetchStationForecast(stationId: string, start: string, hours = 2, timeMinutes = 480, signal?: AbortSignal): Promise<StationForecast[]> {
   if (!isApiMode) return getMockStations(timeMinutes).find(({ id }) => id === stationId)?.forecast ?? []

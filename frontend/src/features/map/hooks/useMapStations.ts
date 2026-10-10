@@ -3,11 +3,12 @@ import { fetchStations } from "@/services/station-service"
 import { useSimulatedTime } from "@/context/TimeContext"
 
 export function useMapStations() {
-  const { selectedTime, selectedIsoTime } = useSimulatedTime()
+  const { selectedTime, selectedIsoTime, isReady } = useSimulatedTime()
   return useQuery({
     queryKey: ["stations", "map", selectedIsoTime],
     queryFn: ({ signal }) => fetchStations(selectedTime, selectedIsoTime, signal),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    enabled: isReady,
   })
 }

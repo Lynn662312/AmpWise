@@ -8,7 +8,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    mock: bool = True
+    # The checked-in dataset is the California/US ACN source of truth.
+    # Legacy contract examples remain available only when MOCK=1 is explicit.
+    mock: bool = False
     data_dir: str = "./data"
     cors_origins: str = "http://localhost:5173"
     llm_api_key: str = ""

@@ -1,4 +1,4 @@
-import { Activity, Gauge, MessageCircleWarning, PlugZap, ShieldAlert, TrafficCone, TrendingDown, type LucideIcon } from "lucide-react"
+import { Activity, Gauge, MessageCircleWarning, PlugZap, ShieldAlert, TrafficCone, TrendingDown, Wrench, type LucideIcon } from "lucide-react"
 import type { IssueType } from "@/features/actions/types"
 
 export const issueConfig: Record<IssueType, { label: string; description: string; category: string; icon: LucideIcon; color: string }> = {
@@ -6,6 +6,7 @@ export const issueConfig: Record<IssueType, { label: string; description: string
   degraded: { label: "Degraded charger", description: "Reduced charger performance", category: "Health", icon: Activity, color: "high" },
   connector_fault: { label: "Connector fault", description: "Connector or cable issue", category: "Health", icon: PlugZap, color: "high" },
   user_reported: { label: "Driver-reported issue", description: "Drivers reported a charger problem, but its sensors have not identified a fault.", category: "Reports", icon: MessageCircleWarning, color: "high" },
+  site_issue: { label: "Site issue", description: "A driver-reported bay problem needs human action on site.", category: "Site", icon: Wrench, color: "medium" },
   congestion: { label: "Congestion", description: "Predicted charging demand pressure", category: "Demand", icon: TrafficCone, color: "medium" },
   chronic_undercapacity: { label: "Chronic undercapacity", description: "Recurring demand above available capacity", category: "Planning", icon: Gauge, color: "medium" },
   underused: { label: "Underused station", description: "Station usage below expected demand", category: "Planning", icon: TrendingDown, color: "low" },

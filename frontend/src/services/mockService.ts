@@ -13,6 +13,7 @@ import whatIfRules from "@/data/whatif-results.json"
 import demoScenarios from "@/data/demo-scenarios.json"
 import metaData from "@/data/meta.json"
 import sessionsData from "@/data/sessions.json"
+import reportCategoriesData from "@/data/feedback.json"
 import { regions, type RegionId } from "@/features/map/config/regions"
 import type { ApiMeta } from "@/types/api"
 
@@ -141,6 +142,7 @@ export function getEvaluationWeeks(): readonly EvaluationWeek[] { return backtes
 export function getMockMeta(): ApiMeta { return { corridor_name: metaData.corridor_name, timezone: metaData.timezone, currency: metaData.currency, time_range: metaData.time_range, demo_times: metaData.demo_times, festive_periods: metaData.festive_periods, assumptions: metaData.assumptions } }
 export function getDemoScenarios(): readonly MockDemoScenario[] { return demoScenarios }
 export function getMockSessions() { return sessionsData }
+export function getMockReportCategories() { return reportCategoriesData }
 export function getMockDashboardData(): MockDashboardData { return sessionsData }
 export function getStations(region?: RegionId, timeMinutes = 480) { return getMockStations(timeMinutes).filter((station) => !region || station.region === region) }
 export function getStationById(id: string, timeMinutes = 480) { return getMockStations(timeMinutes).find((station) => station.id === id) ?? null }

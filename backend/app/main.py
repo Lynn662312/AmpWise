@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="AmpWise API", version="0.2", lifespan=lifespan)
+app = FastAPI(title="AmpWise API", version="0.5", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
