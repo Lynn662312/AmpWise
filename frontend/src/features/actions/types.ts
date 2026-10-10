@@ -1,4 +1,4 @@
-export type IssueType = "safety_fault" | "degraded" | "connector_fault" | "congestion" | "chronic_undercapacity" | "underused"
+export type IssueType = "safety_fault" | "degraded" | "connector_fault" | "user_reported" | "congestion" | "chronic_undercapacity" | "underused"
 export type Urgency = "critical" | "high" | "medium" | "low"
 export type ActionStatus = "pending" | "assigned" | "completed"
 export type ActionState = "open" | "assigned" | "done"
@@ -26,5 +26,7 @@ export type Action = {
   deadline: string | null
   urgency: Urgency
   reason: string
+  report_count: number
+  first_reported_at: string | null
   state: ActionState
 }

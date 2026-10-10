@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { dataService } from "@/services/dataService"
-import { configureSimulation, isoAtMinutesOfAnchorDay } from "@/lib/simulationConfig"
+import { configureSimulation, isoAtMinutesOfSelectedDay } from "@/lib/simulationConfig"
 
 type TimeContextValue = {
   selectedTime: number
@@ -31,7 +31,7 @@ function supportedMinutes(value: string, start: string, end: string) {
 
 export function TimeProvider({ children }: { children: ReactNode }) {
   const [selectedTime, setSelectedTime] = useState(8 * 60)
-  const [selectedIsoTime, setSelectedIsoTime] = useState(() => isoAtMinutesOfAnchorDay(8 * 60))
+  const [selectedIsoTime, setSelectedIsoTime] = useState(() => "2019-12-01T08:00:00-08:00")
   const initialized = useRef(false)
   const { data: meta } = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => dataService.getMeta(signal), staleTime: Infinity, refetchOnWindowFocus: false })
 
@@ -49,7 +49,7 @@ export function TimeProvider({ children }: { children: ReactNode }) {
 
   const updateSelectedTime = (minutes: number) => {
     setSelectedTime(minutes)
-    setSelectedIsoTime(isoAtMinutesOfAnchorDay(minutes))
+    setSelectedIsoTime((current) => isoAtMinutesOfSelectedDay(current, minutes))
   }
 
   const value = useMemo(() => ({ selectedTime, selectedIsoTime, timeLabel: formatTime(selectedTime), setSelectedTime: updateSelectedTime }), [selectedIsoTime, selectedTime])

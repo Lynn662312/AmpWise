@@ -29,3 +29,12 @@ export function isoAtMinutesOfAnchorDay(minutes: number) {
   const mm = String(minutes % 60).padStart(2, "0")
   return `${anchorDate}T${hh}:${mm}:00${utcOffset}`
 }
+
+export function isoAtMinutesOfSelectedDay(selectedIsoTime: string, minutes: number) {
+  const match = selectedIsoTime.match(/^(\d{4}-\d{2}-\d{2})T.*?(Z|[+-]\d{2}:\d{2})$/)
+  const date = match?.[1] ?? anchorDate
+  const offset = match?.[2] === "Z" ? "+00:00" : match?.[2] ?? utcOffset
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0")
+  const mm = String(minutes % 60).padStart(2, "0")
+  return `${date}T${hh}:${mm}:00${offset}`
+}

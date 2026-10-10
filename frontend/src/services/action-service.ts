@@ -4,9 +4,19 @@ import type { ApiAction } from "@/types/api"
 import type { ActionAdvice, AdviceLanguage, ActionState } from "@/features/actions/types"
 import { fetchJson, isApiMode } from "@/services/api-client"
 
+function normalizeApiActions(payload: ApiAction[]): Action[] {
+  if (!Array.isArray(payload)) throw new Error("Action API contract mismatch: expected an array.")
+  return payload.map((action) => {
+    if (typeof action.report_count !== "number" || !("first_reported_at" in action)) {
+      throw new Error(`Action API contract mismatch: ${action.id ?? "unknown action"} is missing report_count or first_reported_at.`)
+    }
+    return action
+  })
+}
+
 export async function fetchActions(time: string, limit = 50, signal?: AbortSignal): Promise<{ actions: Action[]; source: "api" | "mock" }> {
   if (!isApiMode) return { actions: getMockActions().slice(0, limit), source: "mock" }
-  return { actions: await fetchJson<ApiAction[]>(`/api/actions?time=${encodeURIComponent(time)}&limit=${encodeURIComponent(String(limit))}`, { signal }), source: "api" }
+  return { actions: normalizeApiActions(await fetchJson<ApiAction[]>(`/api/actions?time=${encodeURIComponent(time)}&limit=${encodeURIComponent(String(limit))}`, { signal })), source: "api" }
 }
 
 export async function fetchActionAdvice(actionId: string, time: string, language: AdviceLanguage, signal?: AbortSignal): Promise<ActionAdvice> {

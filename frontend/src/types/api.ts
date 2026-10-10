@@ -57,6 +57,8 @@ export type ApiAction = Action & {
   id: string
   station_name: string
   state: ActionState
+  report_count: number
+  first_reported_at: string | null
 }
 
 export type ApiChargerHealth = {

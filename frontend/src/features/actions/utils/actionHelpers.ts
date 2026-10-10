@@ -1,6 +1,6 @@
 import type { Action, IssueType, Urgency } from "@/features/actions/types"
 import type { ChargingStation } from "@/features/map/types"
-import { getTimeZone, isoAtMinutesOfAnchorDay } from "@/lib/simulationConfig"
+import { getTimeZone } from "@/lib/simulationConfig"
 export { formatCurrency } from "@/lib/simulationConfig"
 
 export const urgencyOrder: Record<Urgency, number> = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -10,9 +10,16 @@ export function formatDeadline(deadline: string | null) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: getTimeZone() }).format(new Date(deadline))
 }
 
-export function isWithinNext24Hours(deadline: string | null, selectedTime: number) {
+export function formatReportedAt(value: string | null) {
+  if (!value) return null
+  const timestamp = new Date(value)
+  if (Number.isNaN(timestamp.getTime())) return null
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: getTimeZone() }).format(timestamp)
+}
+
+export function isWithinNext24Hours(deadline: string | null, selectedIsoTime: string) {
   if (!deadline) return false
-  const base = Date.parse(isoAtMinutesOfAnchorDay(selectedTime))
+  const base = Date.parse(selectedIsoTime)
   const target = new Date(deadline).getTime()
   return target >= base && target <= base + 24 * 60 * 60 * 1000
 }

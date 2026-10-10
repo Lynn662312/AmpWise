@@ -38,7 +38,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const stations = stationsData?.stations ?? []
 
   const actionNotifications = useMemo(
-    () => (actionsData ? mapActionsToNotifications(actionsData.actions.filter(({ urgency, issue_type }) => urgency === "critical" && issue_type === "safety_fault"), stations, actionsData.source) : []),
+    () => (actionsData ? mapActionsToNotifications(actionsData.actions.filter(({ urgency, issue_type }) => urgency === "critical" && (issue_type === "safety_fault" || issue_type === "user_reported")), stations, actionsData.source) : []),
     [actionsData, stations],
   )
   const [demoNotifications, setDemoNotifications] = useState<Notification[]>([])

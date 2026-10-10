@@ -1,194 +1,149 @@
-AmpWise — Backend items still missing
-=====================================
+AmpWise — Frontend API v0.4 integration checklist
+==================================================
 
-Why now
--------
+Contract source status
+----------------------
 
-The frontend already supports the current v0.2 API endpoints. The items below
-are not covered by the existing contract, so the frontend cannot safely provide
-these features with real backend data yet.
+- Requested source: `../docs/api_contract.md`
+- Actual result: file is not present in this repository checkout.
+- Available reference: `frontend/api-contract.txt`, labelled v0.4.
+- The legacy reference still contains Malaysian, RM and +08:00 examples that
+  conflict with the v0.4 US/California rules. These conflicts are documented
+  in `note-add-2.txt`; the authoritative contract was not edited.
 
-1. Station regions — Needed for API region switching
-----------------------------------------------------
-
-Current gap:
-
-- Local JSON supports Malaysia and California.
-- The current station API response does not provide a region field.
-- The frontend cannot reliably filter API stations by region.
-
-Backend request:
-
-- Add `region` to every station response, or
-- Add a documented region metadata endpoint.
-
-Affected page: `/map`
-Priority: Recommended
-
-2. Station-to-charger discovery — Required
-------------------------------------------
-
-Current gap:
-
-- The frontend receives station records but cannot discover verified charger
-  IDs for every station.
-- The frontend must not construct charger IDs from `n_chargers`.
-
-Suggested endpoint:
-
-GET /api/stations/{station_id}/chargers
-
-Minimum response fields:
-
-- `charger_id`
-- `station_id`
-- charger specifications, only when available
-
-Affected pages: Station Detail, Charger Health, What-if
-Priority: Required
-
-3. Sessions and network uptime — Required for live Sessions data
----------------------------------------------------------------
-
-Current gap:
-
-- The current contract does not define session records or network uptime data.
-- The Sessions page cannot display verified live session and uptime metrics.
-
-Suggested endpoints:
-
-- GET /api/sessions
-- GET /api/network/status
-
-Please define time-range parameters and response fields for:
-
-- session records
-- online station count
-- total station count
-- uptime percentage
-
-Affected page: `/sessions`
-Priority: Required
-
-4. Delayed-repair simulation — Optional
-----------------------------------------
-
-Current gap:
-
-- v0.2 supports `fix_now`.
-- There is no repair date or repair offset parameter.
-- The frontend cannot send a real “fix after the next peak” comparison.
-
-Suggested request addition:
-
-- `repair_time`, or
-- `repair_offset_hours`
-
-Please define how the backend calculates the delayed outcome. Until then,
-`after_peak` remains demo-only in the frontend.
-
-Affected page: `/what-if`
-Priority: Optional
-
-5. Saved scenarios — Optional
------------------------------
-
-Current gap:
-
-- Scenario persistence is not defined in v0.2.
-- The frontend does not call Firestore or persist scenarios locally.
-
-Suggested endpoints:
-
-- GET /api/scenarios
-- POST /api/scenarios
-- DELETE /api/scenarios/{scenario_id}
-
-Please define scenario ID, saved inputs, owner/session, timestamps and access
-scope before this UI is enabled.
-
-Affected pages: `/what-if`, Presentation Mode
-Priority: Optional
-
-6. Demo reset — Optional
+Verification environment
 ------------------------
 
-Current gap:
+- Branch: `gy-fe-branch`
+- Backend check: `GET http://localhost:8000/api/health` was attempted.
+- Result: backend unavailable; connection refused.
+- Therefore no endpoint is marked “connected and verified” against a live
+  FastAPI response.
+- Frontend production build: passed.
+- `git diff --check`: passed.
+- No browser or live-network flow is claimed as verified.
 
-- Presentation Mode has no backend reset capability.
-- The frontend cannot reset server-side demo scenarios or state.
+Endpoint progress
+-----------------
 
-Suggested endpoint:
+### GET /api/meta
 
-POST /api/demo/reset
+- Parameters: none.
+- Expected fields: `corridor_name`, `currency`, `time_range`,
+  `festive_periods`, `demo_times`, `assumptions`.
+- Frontend: connected through the shared data service and React Query.
+- Uses metadata to initialize simulated time and currency formatting.
+- Status: Connected in mock mode; live verification blocked because backend is
+  unavailable.
 
-Suggested request:
+### GET /api/health
 
-```json
-{
-  "clear_scenarios": false
-}
-```
+- Parameters: none.
+- Expected fields: `status`, plus backend health metadata when available.
+- Frontend: connected through the shared system service.
+- Status: Typed and wired; live verification blocked.
 
-Please document authorization and the exact reset scope.
+### GET /api/stations?time=
 
-Affected feature: Presentation Mode
-Priority: Optional
+- Required parameter: station-local ISO 8601 timestamp with offset.
+- Expected fields: `id`, `name`, `lat`, `lon`, `n_chargers`, `n_working`,
+  `power_kw`, `predicted_wait_min`, `level`, `open_issue_count`.
+- Frontend: connected; California-only map behavior is preserved and no region
+  parameter is sent.
+- Status: Connected in code; live response not verified.
+- Remaining issue: API stations do not provide a location field in v0.4, so the
+  UI displays a safe unavailable location label when necessary.
 
-7. Server-driven notifications — Optional
-------------------------------------------
+### GET /api/stations/{station_id}/forecast?start=&hours=
 
-Current gap:
+- Required parameters: `start`, `hours`.
+- Expected fields per 30-minute slot: `slot_start`, `arrivals`,
+  `arrivals_baseline`, `wait_min`, `is_festive`.
+- Frontend: connected with AbortSignal and stable React Query keys.
+- Status: Connected in code; live verification blocked.
 
-- There is no notification endpoint or event stream in the current contract.
-- The frontend currently derives critical safety alerts from the actions query.
+### GET /api/chargers/{charger_id}/health?time=&days=
 
-If server-driven alerts are required, define one of:
+- Required parameters: verified `charger_id`, station-local `time`, `days`.
+- Expected fields: `charger_id`, `station_id`, `status`, `p_fault`, `evidence`,
+  `series`, `degraded_since`.
+- Frontend: connected and maps `series` to the health chart.
+- Status: Connected in code; live verification blocked.
+- Remaining issue: v0.4 does not define station-to-charger discovery. The
+  frontend no longer guesses charger IDs in API mode.
 
-- GET /api/notifications
-- Server-sent events
-- WebSocket events
+### GET /api/actions?time=&limit=
 
-Every event should include a stable `event_id` or `action_id` for deduplication.
+- Required parameters: station-local `time`, optional `limit`.
+- Expected v0.4 fields: `id`, `rank`, `issue_type`, `station_id`,
+  `station_name`, `charger_id`, `recommended_action`, `rm_at_risk`,
+  `deadline`, `urgency`, `reason`, `report_count`, `first_reported_at`,
+  `state`.
+- Frontend: connected with stable action IDs and explicit v0.4 validation.
+- Added `user_reported` support across badges, filters, alerts and details.
+- Status: Connected in code; live verification blocked.
+- Contract mismatch behavior: old responses missing `report_count` or
+  `first_reported_at` produce a visible query error instead of fabricated data.
 
-Affected feature: Global notification bell
-Priority: Optional
+### POST /api/actions/{action_id}/advice
 
-8. Production deployment configuration — Required before deployment
---------------------------------------------------------------------
+- Body: `{ "time": "...", "language": "en|zh|ms" }`.
+- Expected fields: `action_id`, `summary`, `steps`, `caveats`, `source`,
+  `cached`.
+- Frontend: explicit on-demand mutation; AI advice is restored in the action
+  detail drawer.
+- Status: Connected in code; live verification blocked.
 
-Current gap:
+### PATCH /api/actions/{action_id}/status
 
-- The production API URL is not defined in the frontend repository.
-- Production CORS has not been confirmed.
+- Body: `{ "state": "assigned" | "done" }`.
+- Frontend: gated by `VITE_ACTION_STATUS_ENABLED=true`.
+- Status: Conditional; not enabled until the backend route is live-tested.
 
-Backend handoff needed:
+### POST /api/whatif
 
-- Production API base URL for `VITE_API_BASE_URL`.
-- Allowed frontend origin(s) in FastAPI CORS settings.
-- Confirmation that all v0.2 routes are reachable from the deployed frontend.
+- Body: v0.4 scenario request with only scenario-specific fields.
+- Expected fields: `before_wait_min`, `after_wait_min`,
+  `before_revenue_rm`, `after_revenue_rm`, `summary`.
+- Frontend: connected through a React Query mutation with no silent fallback.
+- Status: Connected in code; live verification blocked.
+- Delayed repair remains mock-only because v0.4 has no repair-date field.
 
-Affected pages: All API-connected pages
-Priority: Required
+### GET /api/backtest?week=
 
-9. Real ML evaluation confirmation — Required for production claims
---------------------------------------------------------------------
+- Required parameter: supported evaluation week identifier.
+- Expected fields: `week_label`, impact metrics, fault metrics and `daily[]`.
+- Frontend: connected and renders the daily comparison chart.
+- Status: Connected in code; live verification blocked.
+- Remaining issue: supported California evaluation weeks are not exposed by
+  the available Meta contract, so the frontend currently needs a documented
+  week registry or a Meta field.
 
-Current gap:
+### POST /api/demo/reset
 
-- The frontend can display the v0.2 backtest schema, but it cannot confirm
-  whether the backend is running real ML output or demo fixtures.
+- Status: Not implemented in the frontend; endpoint is optional in the
+  available v0.4 reference.
 
-Backend handoff needed:
+### GET/POST /api/scenarios
 
-- Confirm the `MOCK=0` runtime configuration.
-- Provide one representative response from each model-backed endpoint.
-- Confirm which Results values are real evaluation results versus simulated
-  demonstration data.
+- Status: Not implemented in the frontend; endpoint is optional in the
+  available v0.4 reference. The frontend never accesses Firestore directly.
 
-Affected pages: Map, Actions, Charger Health, What-if, Results
-Priority: Required
+### Sessions and uptime
 
-Until these items are confirmed, the frontend will show unavailable states or
-explicit demo data where necessary. It will not invent charger IDs, regional
-metadata, session metrics, delayed-repair results or production ML evidence.
+- Status: Not defined by the available v0.4 reference. Sessions remains local
+  demo data and is not claimed as live API data.
+
+Migration completed
+-------------------
+
+- Added `user_reported` issue classification.
+- Added `report_count` and `first_reported_at` to Action types and API checks.
+- Preserved backend-provided rank as the default Action Center ordering.
+- Added driver-report details without treating them as confirmed sensor faults.
+- Kept California-only station behavior and removed the Map region selector.
+- Preserved USD currency configuration through `meta.currency`.
+- Updated simulated time to preserve the selected California local date and
+  offset when the time slider changes.
+- Prevented API-mode Charger Health from deriving charger IDs from counts.
+- Updated notifications and Overview charger alerts for `user_reported`.

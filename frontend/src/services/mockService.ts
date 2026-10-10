@@ -1,4 +1,4 @@
-import type { Action } from "@/features/actions/types"
+import type { Action, ActionState } from "@/features/actions/types"
 import type { ChargingStation, StationLevel } from "@/features/map/types"
 import type { ChargerHealth } from "@/features/chargers/types"
 import type { BacktestResult, EvaluationWeek } from "@/features/results/types"
@@ -16,21 +16,26 @@ import sessionsData from "@/data/sessions.json"
 import { regions, type RegionId } from "@/features/map/config/regions"
 import type { ApiMeta } from "@/types/api"
 
-type StationSeed = typeof stationsData[number]
-type ForecastProfile = typeof forecastProfiles[number]
-type ChargerOverride = typeof chargerOverrides[number]
+type StationSeed = { id: string; name: string; region: string; lat: number; lon: number; location?: string; n_chargers?: number; n_working?: number; power_kw?: number }
+type ForecastProfile = { station_id: string; base_wait_min: number; time_amplitude_min: number; next_hour_offset_min: number; later_hour_offset_min: number; festive?: boolean }
+type ChargerOverride = { charger_id: string; station_id: string; status: "degraded" | "offline" }
+type ActionSeed = Omit<Action, "station_name" | "state"> & { station_name?: string; state?: ActionState }
 type HealthProfile = typeof healthProfiles.working
 export type MockCharger = { id: string; station_id: string; power_kw: number; status: "working" | "degraded" | "offline" }
 export type MockSimulationInput = WhatIfRequest & { repair_timing?: RepairTiming }
 export type MockStationSeed = Omit<ChargingStation, "forecast" | "predicted_wait_min" | "level"> & { baseWait: number | null }
 export type MockMeta = typeof metaData
 export type MockDemoScenario = typeof demoScenarios[number]
-export type MockDashboardData = typeof sessionsData
+export type MockDashboardData = {
+  energy_trend: { day: string; energy: number }[]
+  overview_stations: { station_id: string; status: string; ports: string; load: string; tone: string }[]
+  summary: { energy_delivered_kwh: number; active_stations: number; total_stations: number; live_sessions: number; network_uptime_pct: number; weekly_energy_kwh: number }
+}
 
 const storageKey = "ampwise-map-stations"
 
 function readSeeds(): MockStationSeed[] {
-  const canonical = stationsData.map((station) => ({ ...station, location: station.location ?? null, n_chargers: station.n_chargers ?? null, n_working: station.n_working ?? null, power_kw: station.power_kw ?? null, baseWait: getProfile(station.id)?.base_wait_min ?? null })) as MockStationSeed[]
+  const canonical = (stationsData as StationSeed[]).map((station) => ({ ...station, location: station.location ?? null, n_chargers: station.n_chargers ?? null, n_working: station.n_working ?? null, power_kw: station.power_kw ?? null, baseWait: getProfile(station.id)?.base_wait_min ?? null })) as MockStationSeed[]
   if (typeof window !== "undefined") {
     const saved = window.localStorage.getItem(storageKey)
     if (saved) {
@@ -45,7 +50,7 @@ function readSeeds(): MockStationSeed[] {
 }
 
 function getProfile(stationId: string): ForecastProfile | null {
-  return forecastProfiles.find((profile) => profile.station_id === stationId) ?? null
+  return (forecastProfiles as ForecastProfile[]).find((profile) => profile.station_id === stationId) ?? null
 }
 
 function getLevel(wait: number | null, working: number): StationLevel {
@@ -106,11 +111,11 @@ export function getMockChargers(station: ChargingStation | null): MockCharger[] 
 }
 
 export function getMockActions(): Action[] {
-  return (actionsData as Omit<Action, "id" | "station_name" | "state">[]).map((action) => ({
+  return (actionsData as ActionSeed[]).map((action) => ({
     ...action,
-    id: `action_${action.rank}_${action.station_id}`,
-    station_name: stationsData.find((station) => station.id === action.station_id)?.name ?? action.station_id,
-    state: "open" as const,
+    id: action.id ?? `action_${action.rank}_${action.station_id}`,
+    station_name: action.station_name ?? stationsData.find((station) => station.id === action.station_id)?.name ?? action.station_id,
+    state: action.state ?? "open",
   }))
 }
 
@@ -179,8 +184,8 @@ export function validateMockData() {
   if (stationIds.size !== stations.length) throw new Error("Mock data error: station IDs must be unique.")
   stations.forEach((station) => { if (station.n_working !== null && station.n_chargers !== null && (station.n_working < 0 || station.n_working > station.n_chargers)) throw new Error(`Mock data error: invalid charger count for ${station.id}.`) })
   const chargerIds = new Set(stations.flatMap((station) => getMockChargers({ ...station, predicted_wait_min: null, level: "unavailable", forecast: [] }).map(({ id }) => id)))
-  actionsData.forEach((action) => { if (!stationIds.has(action.station_id)) throw new Error(`Mock data error: unknown action station ${action.station_id}.`); if (action.charger_id && !chargerIds.has(action.charger_id)) throw new Error(`Mock data error: unknown action charger ${action.charger_id}.`) })
-  forecastProfiles.forEach((profile) => { if (!stationIds.has(profile.station_id)) throw new Error(`Mock data error: unknown forecast station ${profile.station_id}.`) })
+  ;(actionsData as ActionSeed[]).forEach((action) => { if (!stationIds.has(action.station_id)) throw new Error(`Mock data error: unknown action station ${action.station_id}.`); if (action.charger_id && !chargerIds.has(action.charger_id)) throw new Error(`Mock data error: unknown action charger ${action.charger_id}.`) })
+  ;(forecastProfiles as ForecastProfile[]).forEach((profile) => { if (!stationIds.has(profile.station_id)) throw new Error(`Mock data error: unknown forecast station ${profile.station_id}.`) })
   ;(chargerOverrides as ChargerOverride[]).forEach((charger) => { if (!stationIds.has(charger.station_id)) throw new Error(`Mock data error: unknown charger station ${charger.station_id}.`) })
   return true
 }
