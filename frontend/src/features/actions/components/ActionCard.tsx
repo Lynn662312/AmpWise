@@ -1,0 +1,12 @@
+import { ArrowUpRight, CalendarClock, MapPin } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import type { Action, ActionStatus } from "@/features/actions/types"
+import type { ChargingStation } from "@/features/map/types"
+import { formatDeadline, formatRm, resolveStationLocation, resolveStationName } from "@/features/actions/utils/actionHelpers"
+import { IssueBadge } from "@/features/actions/components/IssueBadge"
+import { UrgencyBadge } from "@/features/actions/components/UrgencyBadge"
+import { cn } from "@/lib/utils"
+
+export function ActionCard({ action, stations, status, onSelect }: { action: Action; stations: readonly ChargingStation[]; status: ActionStatus; onSelect: () => void }) {
+  return <article className={cn("rounded-[1.35rem] border border-border bg-card p-4 shadow-[0_8px_22px_color-mix(in_srgb,var(--primary)_5%,transparent)]", action.issue_type === "safety_fault" && "border-destructive/35")}><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2"><span className="font-display text-2xl font-semibold">#{action.rank}</span><UrgencyBadge urgency={action.urgency} /></div><IssueBadge issue={action.issue_type} compact /></div><div className="mt-4"><p className="text-sm font-semibold">{resolveStationName(action.station_id, stations)}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={13} />{resolveStationLocation(action.station_id, stations)}{action.charger_id && <span>· {action.charger_id}</span>}</p></div><div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted p-3"><div><p className="text-[11px] text-muted-foreground">Potential RM loss</p><p className="mt-1 text-sm font-semibold">{formatRm(action.rm_at_risk)}</p></div><div><p className="text-[11px] text-muted-foreground">Deadline</p><p className="mt-1 flex items-center gap-1 text-xs font-semibold"><CalendarClock size={13} />{formatDeadline(action.deadline)}</p></div></div><p className="mt-4 line-clamp-2 text-xs leading-5 text-muted-foreground">{action.reason}</p><div className="mt-4 flex items-center justify-between"><span className="text-[11px] capitalize text-muted-foreground">Demo status: {status}</span><Button variant="soft" className="px-3 py-2 text-xs" onClick={onSelect}>View details <ArrowUpRight size={14} /></Button></div></article>
+}

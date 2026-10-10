@@ -1,0 +1,15 @@
+{
+  "source": "mock",
+  "corridor": "KL–JB corridor",
+  "stations": [
+    { "id": "kl-sentral", "name": "AmpWise KL Sentral", "location": "Brickfields, Kuala Lumpur", "lat": 3.1342, "lon": 101.6866, "n_chargers": 12, "n_working": 10, "power_kw": 180, "baseWait": 6 },
+    { "id": "bangsar-south", "name": "AmpWise Bangsar South", "location": "Bangsar South, Kuala Lumpur", "lat": 3.1118, "lon": 101.6625, "n_chargers": 8, "n_working": 6, "power_kw": 150, "baseWait": 24 },
+    { "id": "putrajaya-gateway", "name": "AmpWise Putrajaya Gateway", "location": "Presint 15, Putrajaya", "lat": 2.9264, "lon": 101.6964, "n_chargers": 16, "n_working": 15, "power_kw": 240, "baseWait": 11 },
+    { "id": "cyberjaya-techpark", "name": "AmpWise Cyberjaya TechPark", "location": "Cyberjaya, Selangor", "lat": 2.9213, "lon": 101.6559, "n_chargers": 10, "n_working": 9, "power_kw": 180, "baseWait": 4 },
+    { "id": "seremban-north", "name": "AmpWise Seremban North", "location": "Seremban, Negeri Sembilan", "lat": 2.7422, "lon": 101.9381, "n_chargers": 8, "n_working": 5, "power_kw": 120, "baseWait": 29 },
+    { "id": "melaka-central", "name": "AmpWise Melaka Central", "location": "Ayer Keroh, Melaka", "lat": 2.2654, "lon": 102.2802, "n_chargers": 14, "n_working": 11, "power_kw": 200, "baseWait": 17 },
+    { "id": "muar-rest-stop", "name": "AmpWise Muar Rest Stop", "location": "Pagoh, Johor", "lat": 2.1172, "lon": 102.6915, "n_chargers": 6, "n_working": 0, "power_kw": 120, "baseWait": 0 },
+    { "id": "iskandar-puteri", "name": "AmpWise Iskandar Puteri", "location": "Iskandar Puteri, Johor", "lat": 1.4222, "lon": 103.6284, "n_chargers": 12, "n_working": 10, "power_kw": 180, "baseWait": 8 },
+    { "id": "jb-city-centre", "name": "AmpWise JB City Centre", "location": "Johor Bahru, Johor", "lat": 1.4927, "lon": 103.7414, "n_chargers": 18, "n_working": 16, "power_kw": 300, "baseWait": 14 }
+  ]
+}

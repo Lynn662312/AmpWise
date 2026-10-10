@@ -1,0 +1,124 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --brand-green: #20f51a;
+  --brand-forest: #173e1c;
+  --brand-green-muted: #315b37;
+  --brand-green-soft: #dce8de;
+  --background: #eaf3ec;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --foreground: #142018;
+  --primary: var(--brand-forest);
+  --primary-foreground: #ffffff;
+  --accent: var(--brand-green);
+  --accent-foreground: var(--brand-forest);
+  --card: var(--surface-elevated);
+  --card-foreground: var(--foreground);
+  --muted: var(--brand-green-soft);
+  --muted-foreground: #637267;
+  --border: #e4e9e5;
+  --input: #e4e9e5;
+  --ring: var(--brand-green);
+  --destructive: #d84f4f;
+  --warning: #d58c23;
+  --success: var(--brand-green);
+  --info: #4388ce;
+  --chart-1: var(--brand-green);
+  --chart-2: #4388ce;
+  --chart-3: #d58c23;
+  --chart-4: #8c68d8;
+  --chart-5: #e46c8e;
+  --sidebar: var(--brand-forest);
+  --sidebar-foreground: #ffffff;
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+  --radius: 1.25rem;
+}
+
+.dark {
+  --background: #101310;
+  --surface: #1a1e1a;
+  --surface-elevated: #242924;
+  --foreground: #f5f7f5;
+  --card: var(--surface-elevated);
+  --card-foreground: var(--foreground);
+  --accent-foreground: var(--brand-forest);
+  --muted: #242924;
+  --muted-foreground: #a5b0a7;
+  --border: #343b35;
+  --input: #343b35;
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+}
+
+.leaflet-container {
+  background: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.leaflet-popup-content { margin: 0.8rem; }
+.leaflet-popup-close-button { color: var(--muted-foreground) !important; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--card) 88%, transparent) !important; color: var(--muted-foreground); }
+.leaflet-control-attribution a { color: var(--primary); }
+.station-marker-icon { background: transparent; border: 0; }
+.station-marker { display: grid; width: 38px; height: 38px; place-items: center; border: 3px solid var(--card); border-radius: 999px 999px 999px 4px; background: var(--station-marker-bg); color: var(--station-marker-foreground); box-shadow: 0 5px 15px color-mix(in srgb, var(--primary) 25%, transparent); transform: rotate(-45deg); transition: transform 180ms ease, box-shadow 180ms ease; }
+.station-marker svg { width: 18px; height: 18px; transform: rotate(45deg); }
+.station-marker--low { --station-marker-bg: var(--success); --station-marker-foreground: var(--primary-foreground); }
+.station-marker--moderate { --station-marker-bg: var(--warning); --station-marker-foreground: var(--primary-foreground); }
+.station-marker--high { --station-marker-bg: var(--destructive); --station-marker-foreground: var(--primary-foreground); }
+.station-marker--unavailable { --station-marker-bg: var(--muted-foreground); --station-marker-foreground: var(--background); }
+.station-marker--selected { width: 46px; height: 46px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 24%, transparent), 0 8px 20px color-mix(in srgb, var(--primary) 28%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+@theme inline {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-brand-soft: var(--brand-green-soft);
+  --color-brand-forest: var(--brand-forest);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  button, a { @apply transition-colors; }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 34%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+.pulse-ring { animation: pulse-ring 2.4s ease-out infinite; }

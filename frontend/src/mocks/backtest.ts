@@ -1,0 +1,13 @@
+import type { BacktestResult, EvaluationWeek } from "@/features/results/types"
+
+export const evaluationWeeks: readonly EvaluationWeek[] = [
+  { value: "2026-10-05", label: "5–11 October 2026" },
+  { value: "2026-09-28", label: "28 September–4 October 2026" },
+  { value: "2026-09-21", label: "21–27 September 2026" },
+]
+
+export const mockBacktestResults: Record<string, BacktestResult> = {
+  "2026-10-05": { queue_minutes_saved: 1840, rm_protected: 26800, forecast_mae_ours: 9.2, forecast_mae_baseline: 13.7, fault_precision: 0.87, fault_recall: 0.81 },
+  "2026-09-28": { queue_minutes_saved: 280, rm_protected: 4200, forecast_mae_ours: 11.8, forecast_mae_baseline: 12.4, fault_precision: 0.76, fault_recall: 0.72 },
+  "2026-09-21": { queue_minutes_saved: 0, rm_protected: 0, forecast_mae_ours: 14, forecast_mae_baseline: 13.8, fault_precision: 0.72, fault_recall: 0.68 },
+}
