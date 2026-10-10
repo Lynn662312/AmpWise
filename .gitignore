@@ -67,5 +67,8 @@ ml/models/exported/*
 *.ckpt
 ml/data/
 ml/outputs/
+# Too large for git (GitHub rejects files over 100 MB); share these outside the repo
+ml/output/acn_synth/ocpp_events.csv
+ml/output/acn_synth/ocpp_frames.jsonl
 wandb/
 mlruns/

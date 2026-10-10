@@ -1,0 +1,111 @@
+{
+  "args": {
+    "seed": 42,
+    "out": "./acn_synth",
+    "evse_scale": 0.2,
+    "faults_per_connector_month": 0.15,
+    "comm_faults_per_station_month": 0.1,
+    "silent_faults_per_station_month": 0.1,
+    "meter_interval": 900,
+    "heartbeat_interval": 3600,
+    "burst_intensity": 0.15,
+    "precursor_feedback_per_day": 0.2,
+    "baseline_feedback_per_station_day": 0.08,
+    "no_jsonl": false,
+    "stations": 0,
+    "start_date": "2018-11-01",
+    "days": 486
+  },
+  "faults": {
+    "HighTemperature": {
+      "w": 0.24,
+      "pre_h": [
+        48,
+        168
+      ],
+      "dur_h": [
+        2,
+        24
+      ],
+      "scope": "connector"
+    },
+    "ConnectorLockFailure": {
+      "w": 0.2,
+      "pre_h": [
+        24,
+        96
+      ],
+      "dur_h": [
+        4,
+        48
+      ],
+      "scope": "connector"
+    },
+    "PowerMeterFailure": {
+      "w": 0.14,
+      "pre_h": [
+        12,
+        72
+      ],
+      "dur_h": [
+        6,
+        48
+      ],
+      "scope": "connector"
+    },
+    "GroundFailure": {
+      "w": 0.1,
+      "pre_h": [
+        0.05,
+        1
+      ],
+      "dur_h": [
+        2,
+        24
+      ],
+      "scope": "connector"
+    },
+    "OverCurrentFailure": {
+      "w": 0.1,
+      "pre_h": [
+        0.1,
+        2
+      ],
+      "dur_h": [
+        1,
+        12
+      ],
+      "scope": "connector"
+    },
+    "OverVoltage": {
+      "w": 0.1,
+      "pre_h": [
+        1,
+        12
+      ],
+      "dur_h": [
+        1,
+        8
+      ],
+      "scope": "connector"
+    },
+    "WeakSignal": {
+      "w": 1.0,
+      "pre_h": [
+        6,
+        48
+      ],
+      "dur_h": [
+        1,
+        12
+      ],
+      "scope": "station"
+    }
+  },
+  "silent": [
+    "DamagedCable",
+    "BrokenScreen",
+    "BlockedBay",
+    "DirtyStation"
+  ]
+}

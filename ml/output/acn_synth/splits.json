@@ -1,0 +1,13 @@
+{
+  "DATA_START": "2018-11-01 00:00:00+00:00",
+  "TRAIN_END": "2019-09-30 23:30:00+00:00",
+  "VAL_END": "2019-11-30 23:30:00+00:00",
+  "DATA_END": "2020-02-29 23:30:00+00:00",
+  "SITES": [
+    "caltech/California_Garage_01",
+    "caltech/California_Garage_02",
+    "caltech/N_Wilson_Garage_01",
+    "caltech/S_Wilson_Garage_01",
+    "jpl/Arroyo_Garage_01"
+  ]
+}
