@@ -43,7 +43,7 @@ type DashboardStation = { name: string; area: string; status: string; ports: str
 type OverviewStation = { station_id: string; status: string; ports: string; load: string; tone: string }
 
 const dashboardSteps: OperatorWorkflowStep[] = [
-  { step: "01", label: "Check the network", description: "See stations and predicted congestion.", to: "/map", icon: Map },
+  { step: "01", label: "Monitor network", description: "Explore station activity.", to: "/map", icon: Map },
   { step: "02", label: "Review actions", description: "Prioritize charger issues.", to: "/actions", icon: ClipboardCheck },
   { step: "03", label: "Test solutions", description: "Simulate an intervention.", to: "/what-if", icon: Search },
   { step: "04", label: "Measure impact", description: "Review predicted benefits.", to: "/results", icon: TrendingUp },
