@@ -13,23 +13,21 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 6 | Frontend integration (on ML's real data) | Done and live; walkthrough by a person still to do |
 | 7 | ML integration (Colab outputs) | Done |
 | 8 | Deploy, Firestore and optional extras | Done for the demo: backend on Render, frontend on Vercel, action status on Firestore |
-| 9 | Contract v1.0: done counts as working, demo reset, saved what-if runs, website fixes | Built and tested on the branch `sleep` (pushed); not merged, so not live |
-| 10 | Contract v1.1: money at risk counts cars arriving in bunches; an action can be opened again | Built and tested on `sleep`; not committed yet |
+| 9 | Contract v1.0: done counts as working, demo reset, saved what-if runs, website fixes | Done and live (pull request #9, 2026-10-11) |
+| 10 | Contract v1.1: money at risk counts cars arriving in bunches; an action can be opened again | Done and live (pull request #9, 2026-10-11) |
 
 ## What is left (updated 2026-10-11, after contract v1.1)
 
-Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v0.9 (pull request #8). Checked on 2026-10-11: every page opens on a computer and on a phone-sized screen, and the API answers with the v0.9 fields.
+Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v1.1 since pull request #9 (merged 2026-10-11, about 8:15am). Checked on the live site right after the deploy: the API reports version 1.0 routes (`/api/demo/reset`, `/api/scenarios`), the Actions page shows USD 38, 125, 128 and 67 at risk at the four demo times, the Results page still shows 412 queue minutes and USD 10, a charger link works without `?station=`, and the station page fits a phone screen. The action list takes 3 to 4 seconds to appear on the live server (0.25 s on a laptop).
 
-Not live yet, on the branch `sleep`: Stage 9 (committed and pushed, not merged) and Stage 10 (in the working folder, not committed). In short, contract v1.0 (a charger marked done works again, demo reset, saved what-if runs), the website fixes, and contract v1.1 (the money at risk is no longer 0 where sessions really are at risk).
-
-On it: 103 backend tests and 1 ML test pass, the frontend type-checks and builds, and every page was opened and clicked through in a browser against a local backend. That backend used ML's real data, with Firestore replaced by a list in memory, so the live database was not touched.
+Stages 9 and 10 are live. 103 backend tests and 1 ML test pass, and the frontend type-checks and builds.
 
 To do, in order:
 
 1. [x] Commit the uncommitted work on `final` and push it.
 2. [x] Open a pull request from `final` into `main` and merge it (pull request #8).
-3. [ ] Review the branch `sleep` (Stages 9 and 10 list the files), commit Stage 10, open a pull request into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
-4. [ ] Right after that deploy, open the live Actions page and click "Reset demo" once. The live database still holds test clicks (one action done, two assigned). From v1.0 a charger marked done counts as working, so without the reset JPL's charger 9 would count as working on the days it is faulty.
+3. [x] Merge the branch `sleep` into `main` (pull request #9). Render and Vercel redeployed by themselves within three minutes.
+4. [ ] Before presenting, open the live Actions page and click "Reset demo" once. The live database still holds test clicks (one action done, two assigned). The done one hides JPL's charger 9 on "Quiet Sunday", which is why that list shows USD 67 and not 76. The Results page is not affected by what is marked done (checked with every faulty charger marked done).
 5. [ ] Open the live site and walk every page once by hand: overview, map, a station, a charger (look for "Why this charger is flagged"), actions (mark one done, then "Reset demo"), what-if (run one repair at JPL on "Most chargers down" and save it), results. The first call after a quiet period is slow, because the free server sleeps; the page now says so.
 6. [ ] Give the group the new backtest numbers (Stage 7, "Known limits"): the money figure changed with v0.9.
 
