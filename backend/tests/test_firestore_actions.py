@@ -45,6 +45,8 @@ def test_action_status_round_trip(client: TestClient, monkeypatch: Any) -> None:
         app.dependency_overrides.pop(get_firestore, None)
 
 
-def test_action_status_rejects_open(client: TestClient) -> None:
-    response = client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "open"})
-    assert response.status_code == 400
+def test_action_status_accepts_only_the_three_states(client: TestClient) -> None:
+    client.get("/api/actions", params={"time": TIME, "limit": 10})
+    reopened = client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "open"})
+    assert reopened.status_code == 200 and reopened.json()["state"] == "open"
+    assert client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "closed"}).status_code == 400

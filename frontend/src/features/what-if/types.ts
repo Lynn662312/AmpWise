@@ -22,3 +22,5 @@ export type WhatIfResult = {
 }
 
 export type SimulationResponse = WhatIfResult & { source: "api" | "mock" }
+
+export type SavedScenario = { id: string; name: string; request: WhatIfRequest; result: WhatIfResult }

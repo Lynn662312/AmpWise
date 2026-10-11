@@ -50,7 +50,9 @@ def station_list(data: DataStore, time: datetime) -> list[dict[str, Any]]:
             "id": station.station_id, "name": station.name, "lat": station.lat, "lon": station.lon,
             "n_chargers": station.n_chargers, "n_working": n_working, "power_kw": station.power_kw,
             "predicted_wait_min": wait, "level": wait_level(wait),
-            "open_issue_count": sum(a["station_id"] == station.station_id for a in actions),
+            "open_issue_count": sum(
+                a["station_id"] == station.station_id and a["charger_id"] not in data.repaired for a in actions
+            ),
         })
     return result
 

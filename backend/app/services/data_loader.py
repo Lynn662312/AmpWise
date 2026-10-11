@@ -41,6 +41,9 @@ class DataStore:
         self.chargers_by_station: dict[str, list[str]] = (
             self.health.groupby("station_id")["charger_id"].unique().apply(list).to_dict()
         )
+        # Chargers whose action an operator marked done: they count as working again. This is the one
+        # thing here that changes after start-up; it mirrors Firestore `actions_status`.
+        self.repaired: set[str] = set()
 
 
 def _read(data_dir: str, filename: str, columns: list[str]) -> pd.DataFrame:

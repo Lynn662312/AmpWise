@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.queueing import MAX_WAIT_MIN, erlang_c, predict_wait, served_by_occupancy
+from app.services.queueing import MAX_WAIT_MIN, erlang_c, expected_unserved, predict_wait, served_by_occupancy
 
 
 def test_erlang_c_one_charger_equals_utilisation() -> None:
@@ -82,3 +82,26 @@ def test_unserved_does_not_depend_on_the_wait() -> None:
     # but every car still gets a charger within the half hour.
     assert predict_wait(arrivals=3.9, avg_charge_min=15, working_chargers=2) > 15
     assert served_by_occupancy([3.9], avg_charge_min=15, working_chargers=2) == [3.9]
+
+
+def test_cars_arriving_in_bunches_fill_a_station_the_averages_say_is_never_full() -> None:
+    # Half a car every half hour on one charger, 30 minutes each: on average the charger is never full.
+    forecast = [0.5] * 48
+    assert sum(served_by_occupancy(forecast, avg_charge_min=30, working_chargers=1)) == sum(forecast)
+    # Real cars come whole: some half hours bring two, and the second one finds the charger busy.
+    unserved = sum(expected_unserved(forecast, avg_charge_min=30, working_chargers=1))
+    assert 1.0 < unserved < sum(forecast)
+
+
+def test_expected_unserved_is_repeatable_and_falls_with_more_chargers() -> None:
+    forecast = [2.0, 3.5, 1.0, 0.2] * 6
+    two, three, many = (sum(expected_unserved(forecast, 90, chargers)) for chargers in (2, 3, 50))
+    assert two == sum(expected_unserved(forecast, 90, 2))  # same forecast, same answer
+    assert two > three > many == 0.0
+
+
+def test_expected_unserved_counts_the_cars_already_charging_and_ignores_empty_slots() -> None:
+    assert expected_unserved([0, 0, 0], avg_charge_min=60, working_chargers=1) == [0, 0, 0]
+    alone = sum(expected_unserved([1.0], avg_charge_min=120, working_chargers=1))
+    behind_others = sum(expected_unserved([1.0], avg_charge_min=120, working_chargers=1, earlier=[3.0]))
+    assert behind_others > alone

@@ -208,8 +208,10 @@ python -m pytest ml/tests -q
 | `GET` | `/api/chargers/{id}/events` | Fault messages and driver-report timeline |
 | `GET` | `/api/actions` | Ranked, explainable intervention list |
 | `POST` | `/api/actions/{id}/advice` | Template or optional LLM-assisted action guidance |
-| `PATCH` | `/api/actions/{id}/status` | Persist assignment/completion state |
+| `PATCH` | `/api/actions/{id}/status` | Persist assignment/completion state; a charger marked done counts as working again |
+| `POST` | `/api/demo/reset` | Open every action again (and clear the saved what-if runs) so a demo starts clean |
 | `POST` | `/api/whatif` | Simulate repair or added capacity |
+| `GET` / `POST` | `/api/scenarios` | List / save what-if runs |
 | `GET` | `/api/backtest` | Compare AmpWise with the historical baseline |
 | `GET` | `/api/reports/categories` | Driver complaint categories for the feedback chart |
 | `GET` | `/api/health` | Service status |

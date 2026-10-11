@@ -5,7 +5,7 @@ from typing import Any
 
 from app.core.errors import bad_request, not_found
 from app.schemas import WhatIfRequest
-from app.services.classifier import latest_health, working_chargers
+from app.services.classifier import classify_charger, latest_health, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import HORIZON_HOURS, outlook, upcoming_slots
 
@@ -63,7 +63,7 @@ def simulate_fix(data: DataStore, station_id: str, charger_id: str, time: dateti
         raise not_found(f"Charger {charger_id} does not exist at {station_id}")
 
     n_working = working_chargers(data, station_id, time)
-    is_faulty = health["status"] != "healthy"
+    is_faulty = classify_charger(data, charger_id, time).value != "healthy"
     label = f"Fixing Charger {charger_id.rsplit('_c', 1)[-1]} at {station} now"
     return _compare(data, station_id, time, n_working, n_working + int(is_faulty), label)
 
