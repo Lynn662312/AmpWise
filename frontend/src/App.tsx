@@ -29,6 +29,7 @@ import { useOverview } from "@/features/overview/hooks/useOverview"
 import { isApiMode } from "@/services/api-client"
 import { getTimeZone } from "@/lib/simulationConfig"
 import logo from "@/assets/logo.png"
+import { OperatorWorkflowCard, type OperatorWorkflowStep } from "@/components/common/OperatorWorkflowCard"
 
 // Every page except the overview is loaded when it is first opened, so the first screen downloads less.
 const MapPage = lazy(() => import("@/features/map/MapPage").then((page) => ({ default: page.MapPage })))
@@ -41,11 +42,39 @@ const ChargerHealthPage = lazy(() => import("@/features/chargers/ChargerHealthPa
 type DashboardStation = { name: string; area: string; status: string; ports: string; load: string; tone: string }
 type OverviewStation = { station_id: string; status: string; ports: string; load: string; tone: string }
 
-const navItems = [
-  { label: "Overview", to: "/", icon: LayoutDashboard },
-  { label: "Map", to: "/map", icon: Map },
-  { label: "Actions", to: "/actions", icon: ClipboardCheck },
-  { label: "Results", to: "/results", icon: TrendingUp },
+const dashboardSteps: OperatorWorkflowStep[] = [
+  { step: "01", label: "Check the network", description: "See stations and predicted congestion.", to: "/map", icon: Map },
+  { step: "02", label: "Review actions", description: "Prioritize charger issues.", to: "/actions", icon: ClipboardCheck },
+  { step: "03", label: "Test solutions", description: "Simulate an intervention.", to: "/what-if", icon: Search },
+  { step: "04", label: "Measure impact", description: "Review predicted benefits.", to: "/results", icon: TrendingUp },
+]
+
+const navGroups = [
+  {
+    label: "Monitor",
+    items: [
+      { label: "Overview", to: "/", icon: LayoutDashboard },
+      { label: "Map & stations", to: "/map", icon: Map },
+    ],
+  },
+  {
+    label: "Respond",
+    items: [{ label: "Action center", to: "/actions", icon: ClipboardCheck }],
+  },
+  {
+    label: "Evaluate",
+    items: [{ label: "Results & impact", to: "/results", icon: TrendingUp }],
+  },
+]
+
+const routeMeta = [
+  { match: (pathname: string) => pathname === "/", label: "Overview", hint: "Network pulse" },
+  { match: (pathname: string) => pathname === "/map", label: "Map & stations", hint: "Monitor the network" },
+  { match: (pathname: string) => pathname === "/actions", label: "Action center", hint: "Respond to issues" },
+  { match: (pathname: string) => pathname === "/results", label: "Results & impact", hint: "Evaluate decisions" },
+  { match: (pathname: string) => pathname.startsWith("/stations/"), label: "Station detail", hint: "Inspect station performance" },
+  { match: (pathname: string) => pathname.startsWith("/chargers/"), label: "Charger health", hint: "Inspect charger evidence" },
+  { match: (pathname: string) => pathname === "/what-if", label: "What-if simulator", hint: "Test an intervention" },
 ]
 
 function App() {
@@ -69,10 +98,9 @@ function AppShell() {
           <div className="flex items-center gap-2.5"><img src={logo} alt="AmpWise" className="size-9 shrink-0 rounded-full object-cover" /><span className="text-lg font-bold tracking-tight">ampwise</span></div>
           <button className="rounded-lg p-1 text-sidebar-foreground/70 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
         </div>
-        <div className="mt-12 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</div>
-        <nav className="mt-3 space-y-1">
-          {navItems.map(({ label, to, icon: Icon }) => <NavLink key={label} to={to} onClick={() => setSidebarOpen(false)} className={({ isActive }) => cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground", isActive && "bg-accent text-primary hover:bg-accent hover:text-primary")}><Icon size={18} /><span>{label}</span></NavLink>)}
-        </nav>
+        <div className="mt-12 space-y-5">
+          {navGroups.map(({ label, items }) => <section key={label}><p className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/40">{label}</p><nav className="mt-2 space-y-1">{items.map(({ label: itemLabel, to, icon: Icon }) => <NavLink key={itemLabel} to={to} onClick={() => setSidebarOpen(false)} className={({ isActive }) => cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground", isActive && "bg-accent text-primary hover:bg-accent hover:text-primary")}><Icon size={18} /><span>{itemLabel}</span></NavLink>)}</nav></section>)}
+        </div>
         <div className="mt-auto space-y-1">
           <div className="mt-5 flex items-center gap-3 rounded-2xl bg-sidebar-foreground/10 p-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-primary">AF</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">user F.</p><p className="truncate text-xs text-sidebar-foreground/55">Operator account</p></div><MoreHorizontal size={17} className="text-sidebar-foreground/50" /></div>
         </div>
@@ -81,7 +109,7 @@ function AppShell() {
       <main className={cn("transition-[padding] duration-200", !presentationMode && "lg:pl-64")}>
         <header className="flex h-20 items-center justify-between border-b border-border/70 px-5 sm:px-8 lg:px-12">
           <button className="rounded-xl p-2 hover:bg-muted lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={21} /></button>
-          <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} /><span className="font-semibold text-foreground">Today</span></div>
+          <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex"><Map size={16} className="text-primary" /><div><p className="font-semibold leading-tight text-foreground">{currentRoute.label}</p><p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{currentRoute.hint}</p></div></div>
           <div className="ml-auto flex items-center gap-2"><label className="hidden items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground md:flex">Simulated time <input type="range" min="0" max="1439" step="30" value={selectedTime} onChange={(event) => setSelectedTime(Number(event.target.value))} disabled={!isReady} className="w-28 accent-[var(--accent)] disabled:opacity-50" aria-label="Simulated time" /
           >
             <span className="min-w-14 text-right text-foreground">{timeLabel}</span></label>{demoTimes.length > 1 && <AppSelect value={selectedIsoTime} onValueChange={selectDemoTime} options={demoTimes.map(({ label, time }) => ({ label, value: time }))} placeholder="Demo time" size="sm" className="hidden w-48 md:block [&>button]:h-auto [&>button]:min-h-9 [&>button]:py-1 [&>button>span:first-child]:line-clamp-2 [&>button>span:first-child]:whitespace-normal" />}
