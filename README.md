@@ -5,7 +5,7 @@
 
   **Predict EV charging problems early. Prioritize the response. Keep every charge moving.**
 
-  [![Dormathon 2026](https://img.shields.io/badge/Dormathon_2026-Track_1%3A_Predictive_Model-EA7C64?style=for-the-badge)](https://www.aihackerdorm.com/events/dormathon-2026-malaysia-s-nationwide-hackathon-build-the-next-big-thing)
+  [![Dormathon 2026](https://img.shields.io/badge/Dormathon_2026-Nationwide_Hackathon-EA7C64?style=for-the-badge)](https://www.aihackerdorm.com/events/dormathon-2026-malaysia-s-nationwide-hackathon-build-the-next-big-thing)
   [![Live Demo](https://img.shields.io/badge/Live_Demo-ampwise.vercel.app-3F6212?style=for-the-badge&logo=vercel&logoColor=white)](https://ampwise.vercel.app)
 
   [![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](frontend/package.json)
@@ -25,7 +25,7 @@
 | **Application** | [ampwise.vercel.app](https://ampwise.vercel.app) | Live on Vercel |
 | **Backend API** | [portpulse-ampwise-api.onrender.com](https://portpulse-ampwise-api.onrender.com/api/health) | Live on Render |
 | **Interactive API docs** | [OpenAPI / Swagger UI](https://portpulse-ampwise-api.onrender.com/docs) | Available |
-| **Action-state storage** | Firebase Firestore | Connected through the backend |
+| **Action and scenario storage** | Firebase Firestore | Connected through the backend |
 
 > **Pitch deck:** A presentation link can be added to the quick links above when the slides are ready.
 
@@ -34,10 +34,6 @@
 AmpWise is an AI-assisted decision platform for EV charging network operators. It combines demand forecasting, charger telemetry, fault events, and driver feedback to identify emerging operational risks before they become expensive failures.
 
 The platform does more than surface predictions. It turns them into a ranked, explainable action list: what is wrong, why it matters, what to do next, how urgently to act, and what operational impact the intervention could have.
-
-AmpWise was built for **DORMATHON 2026 — Track 1: Predictive Model Track**, whose core question is:
-
-> Does your model help someone make a better decision, and can you prove it?
 
 ## The problem
 
@@ -69,7 +65,7 @@ AmpWise closes that decision gap for an **EV charging network operator**.
 - **Decision explanations** — show a human-readable reason for every alert; optionally generate multilingual advice through an LLM, with deterministic templates as a fallback.
 - **What-if analysis** — estimate the change in average wait and served-session revenue after repairing a charger or adding capacity.
 - **Historical backtesting** — compare AmpWise prioritization with the observed repair baseline using queue minutes, estimated revenue protection, forecast MAE, precision, and recall.
-- **Operational persistence** — assign and complete actions through Firestore without exposing database credentials to the client.
+- **Operational persistence** — assign and complete actions, save what-if runs, and reset the demo through the backend without exposing Firestore credentials to the client.
 - **Scenario replay** — switch between four data-selected moments: safety faults, most chargers down, weekday morning rush, and a quiet Sunday.
 
 ## Architecture
@@ -87,7 +83,7 @@ flowchart LR
     E --> API[REST API]
     W --> API
     API --> UI[React operator dashboard]
-    UI --> F[(Firestore action state)]
+    API --> F[(Firestore action and scenario state)]
 ```
 
 The prediction and decision layers remain separate: the ML model forecasts demand, while deterministic backend services calculate queueing, classify issues, estimate impact, rank actions, and validate any optional LLM-generated advice.
@@ -112,7 +108,7 @@ Metrics are stored in [`ml/output/model1_metrics.json`](ml/output/model1_metrics
 ### Prerequisites
 
 - Python 3.12
-- Node.js 22+
+- Node.js 20.19+ or 22.12+
 - npm
 
 ### 1. Clone the repository
@@ -160,7 +156,7 @@ Open `http://localhost:5173`. The supplied environment example connects the fron
 | `DATA_DIR` | Directory containing backend-ready Parquet/JSON files | `./data` |
 | `CORS_ORIGINS` | Comma-separated allowed frontend origins | Local and deployed frontend |
 | `LLM_API_KEY` / `LLM_MODEL` | Optional provider credentials for generated advice | Deterministic template advice |
-| `FIREBASE_CREDENTIALS` | Optional service-account path or JSON for action-state persistence | Persistence disabled |
+| `FIREBASE_CREDENTIALS` | Optional service-account path or JSON for action states, saved what-if runs, and demo reset | Persistence disabled |
 
 ### Frontend — `frontend/.env`
 
@@ -168,7 +164,7 @@ Open `http://localhost:5173`. The supplied environment example connects the fron
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | FastAPI base URL | `http://localhost:8000/api` |
 | `VITE_DATA_MODE` | Use the API or local sample JSON | `api` |
-| `VITE_ACTION_STATUS_ENABLED` | Show assign/complete controls | `false` without Firebase; otherwise `true` |
+| `VITE_ACTION_STATUS_ENABLED` | Show assign/complete controls, demo reset, and saved what-if runs | `false` without Firebase; otherwise `true` |
 
 Never commit `.env` files or service-account credentials.
 
