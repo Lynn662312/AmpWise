@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_data, get_meta, parse_time, sim_time
-from app.schemas import ForecastSlot, Station
+from app.schemas import ForecastSlot, Station, StationCharger
 from app.services import views
 from app.services.data_loader import DataStore
 from app.utils import mock_data
@@ -16,6 +16,15 @@ def list_stations(time: datetime = Depends(sim_time), data: DataStore | None = D
     if data is None:
         return mock_data.stations()
     return views.station_list(data, time)
+
+
+@router.get("/{station_id}/chargers", response_model=list[StationCharger])
+def list_station_chargers(
+    station_id: str, time: datetime = Depends(sim_time), data: DataStore | None = Depends(get_data)
+) -> list[dict]:
+    if data is None:
+        return mock_data.station_chargers(station_id)
+    return views.station_chargers(data, station_id, time)
 
 
 @router.get("/{station_id}/forecast", response_model=list[ForecastSlot])

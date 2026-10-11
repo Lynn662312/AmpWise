@@ -4,6 +4,9 @@ Baseline: what really happened. Every fault lasts until the day it was really re
 Ours:     a fault is known the day the sensors flag it, or on its second driver report. One technician
           repairs one known fault per day, in action-list order, and the charger works again the next day.
 A fault we never notice still ends on its real repair day, as in the baseline.
+
+Queue minutes come from the queueing model. Money comes from estimated unserved sessions: cars
+forecast to arrive when every working charger is busy.
 """
 
 from datetime import date, timedelta
@@ -11,21 +14,61 @@ from typing import Any
 
 import pandas as pd
 
-from app.core.errors import ApiError
+from app.core.errors import ApiError, bad_request
 from app.services.classifier import charge_min
 from app.services.data_loader import DataStore
-from app.services.priority import MIN_REPORTS, build_action_list
-from app.services.queueing import lost_sessions, predict_wait
+from app.services.priority import MIN_REPORTS, build_action_list, earlier_arrivals
+from app.services.queueing import predict_wait, served_by_occupancy
 
 WEEK_DAYS = 7
 
 
-def backtest_days(data: DataStore) -> list[date]:
-    """Seven days starting the day before the first real fault, so both ways of working are tested."""
+def _fault_labels(data: DataStore, last_day: date) -> pd.DataFrame:
+    """The real faults. One without a repair day is treated as lasting until last_day."""
+    labels = data.fault_labels
+    return labels if "end_date" in labels.columns else labels.assign(end_date=last_day)
+
+
+def _default_start(data: DataStore) -> date:
+    """The first of the seven days with the most chargers out of service: the week with the most to test."""
     first = data.forecasts["slot_start"].min().date()
     last = data.forecasts["slot_start"].max().date()
-    faults = data.fault_labels["start_date"]
-    start = max(first, faults.min() - timedelta(days=1)) if len(faults) else first
+    labels = _fault_labels(data, last)
+
+    def days_down(start: date) -> int:
+        end = start + timedelta(days=WEEK_DAYS - 1)
+        overlaps = [(min(f.end_date, end) - max(f.start_date, start)).days + 1 for f in labels.itertuples()]
+        return sum(days for days in overlaps if days > 0)
+
+    starts = [first + timedelta(days=d) for d in range(max((last - first).days - WEEK_DAYS + 2, 1))]
+    return max(starts, key=days_down)  # the earliest week on a tie
+
+
+_weeks: dict[int, list[dict[str, str]]] = {}  # the data never changes after startup, so work it out once
+
+
+def backtest_weeks(data: DataStore) -> list[dict[str, str]]:
+    """The weeks the backtest can replay: the default first, then every Monday-to-Sunday week in the data."""
+    if id(data) not in _weeks:
+        first = data.forecasts["slot_start"].min().date()
+        last = data.forecasts["slot_start"].max().date()
+        default = _default_start(data)
+        mondays = [first + timedelta(days=d) for d in range((last - first).days - WEEK_DAYS + 2)]
+        mondays = [day for day in mondays if day.weekday() == 0 and day != default]
+        _weeks[id(data)] = [
+            {"value": default.isoformat(), "label": f"Week of {default:%d %b %Y} (most chargers down)"},
+            *({"value": day.isoformat(), "label": f"Week of {day:%d %b %Y}"} for day in mondays),
+        ]
+    return _weeks[id(data)]
+
+
+def backtest_days(data: DataStore, week: str | None = None) -> list[date]:
+    """The seven days of the chosen week; without a choice, the week with the most chargers out of service."""
+    weeks = [w["value"] for w in backtest_weeks(data)]
+    if week is not None and week not in weeks:
+        raise bad_request(f"week must be one of meta.backtest_weeks, e.g. {weeks[0]}")
+    start = date.fromisoformat(week or weeks[0])
+    last = data.forecasts["slot_start"].max().date()
     return [start + timedelta(days=d) for d in range(WEEK_DAYS) if start + timedelta(days=d) <= last]
 
 
@@ -52,33 +95,36 @@ def _known_from(data: DataStore, reports: pd.DataFrame, fault: dict[str, Any]) -
 
 def real_faults(data: DataStore, days: list[date]) -> list[dict[str, Any]]:
     """The real faults that touch these days: charger, first day, repair day, and the day we learn of it."""
-    labels = data.fault_labels
-    if "end_date" not in labels.columns:  # no repair day given: the fault outlasts the week
-        labels = labels.assign(end_date=days[-1])
+    labels = _fault_labels(data, days[-1])
     touching = labels[(labels["start_date"] <= days[-1]) & (labels["end_date"] >= days[0])]
     faults = touching[["charger_id", "start_date", "end_date"]].to_dict("records")
-    reports = pd.concat([data.user_reports, data.site_reports])
     for fault in faults:
-        fault["known_from"] = _known_from(data, reports, fault)
+        fault["known_from"] = _known_from(data, data.user_reports, fault)
     return faults
 
 
 def _queues(data: DataStore, days: list[date], down_by_day: list[set[str]]) -> list[dict[str, Any]]:
-    """The queues on each day, given which chargers are down that day."""
+    """The queues and the estimated unserved sessions on each day, given which chargers are down that day."""
     slot_days = data.forecasts["slot_start"].dt.date
     results = []
     for day, down in zip(days, down_by_day):
-        queue_minutes = lost = arrivals_total = 0.0
+        queue_minutes = unserved = arrivals_total = 0.0
         for station in data.stations.itertuples():
             n_working = station.n_chargers - sum(c.startswith(f"{station.station_id}_c") for c in down)
             today = data.forecasts[(data.forecasts["station_id"] == station.station_id) & (slot_days == day)]
             avg_charge_min = charge_min(data, station.station_id)
-            for arrivals in today["arrivals"]:
-                wait = predict_wait(arrivals, avg_charge_min, n_working)
-                queue_minutes += arrivals * wait
-                lost += lost_sessions(arrivals, wait, data.params["max_tolerable_wait_min"])
+            if today.empty:
+                continue
+            arrivals_today = list(today["arrivals"])
+            earlier = earlier_arrivals(data, station.station_id, today["slot_start"].iloc[0])
+            served = served_by_occupancy(arrivals_today, avg_charge_min, n_working, earlier)
+            unserved += sum(arrivals_today) - sum(served)
+            for arrivals in arrivals_today:
+                queue_minutes += arrivals * predict_wait(arrivals, avg_charge_min, n_working)
                 arrivals_total += arrivals
-        results.append({"date": day, "queue_minutes": queue_minutes, "lost": lost, "arrivals": arrivals_total})
+        results.append(
+            {"date": day, "queue_minutes": queue_minutes, "unserved": unserved, "arrivals": arrivals_total}
+        )
     return results
 
 
@@ -126,7 +172,7 @@ def compare(data: DataStore, days: list[date], baseline: list[dict], ours: list[
         "week_label": f"Week of {days[0]:%d %b %Y}",
         "queue_minutes_saved": round(sum(b["queue_minutes"] - o["queue_minutes"] for b, o in zip(baseline, ours)), 1),
         "rm_protected": round(
-            sum(b["lost"] - o["lost"] for b, o in zip(baseline, ours)) * data.params["rm_per_session"], 2
+            sum(b["unserved"] - o["unserved"] for b, o in zip(baseline, ours)) * data.params["rm_per_session"], 2
         ),
         "forecast_mae_ours": mae_ours,
         "forecast_mae_baseline": mae_baseline,
@@ -143,11 +189,12 @@ def compare(data: DataStore, days: list[date], baseline: list[dict], ours: list[
     }
 
 
-_cache: dict[int, dict[str, Any]] = {}  # the data never changes after startup, so run once
+_cache: dict[tuple[int, date], dict[str, Any]] = {}  # the data never changes after startup: one run per week
 
 
-def run_backtest(data: DataStore) -> dict[str, Any]:
-    if id(data) not in _cache:
-        days = backtest_days(data)
-        _cache[id(data)] = compare(data, days, run_baseline(data, days), run_ours(data, days))
-    return _cache[id(data)]
+def run_backtest(data: DataStore, week: str | None = None) -> dict[str, Any]:
+    days = backtest_days(data, week)
+    key = (id(data), days[0])
+    if key not in _cache:
+        _cache[key] = compare(data, days, run_baseline(data, days), run_ours(data, days))
+    return _cache[key]

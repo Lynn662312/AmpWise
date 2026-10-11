@@ -35,3 +35,16 @@ class Advice(BaseModel):
     caveats: list[str]
     source: Literal["llm", "template"]
     cached: bool
+
+
+class ActionStatusRequest(BaseModel):
+    state: Literal["open", "assigned", "done"]
+
+
+class DemoResetRequest(BaseModel):
+    clear_scenarios: bool = False
+
+
+class DemoResetResult(BaseModel):
+    cleared_actions: int
+    cleared_scenarios: int

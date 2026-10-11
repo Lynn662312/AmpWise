@@ -30,10 +30,9 @@ def charge_min(data: DataStore, station_id: str) -> float:
     return data.params["avg_charge_min"]
 
 
-def recent_reports(data: DataStore, charger_id: str, time: datetime, about_site: bool = False) -> pd.Series:
-    """Times drivers reported this charger (or, with about_site, its bay) in the last week, earliest first."""
-    by_charger = data.site_reports_by_charger if about_site else data.reports_by_charger
-    reports = by_charger.get(charger_id)
+def recent_reports(data: DataStore, charger_id: str, time: datetime) -> pd.Series:
+    """Times drivers reported this charger in the last week, earliest first."""
+    reports = data.reports_by_charger.get(charger_id)
     if reports is None:
         return data.user_reports["reported_at"].iloc[:0]
     recent = (reports["reported_at"] <= time) & (reports["reported_at"] > time - timedelta(days=REPORT_WINDOW_DAYS))
@@ -41,6 +40,9 @@ def recent_reports(data: DataStore, charger_id: str, time: datetime, about_site:
 
 
 def classify_charger(data: DataStore, charger_id: str, time: datetime) -> ChargerStatus:
+    """The charger's status for counting working chargers. One whose action is marked done is working again."""
+    if charger_id in data.repaired:
+        return ChargerStatus.healthy
     row = latest_health(data, charger_id, time)
     return ChargerStatus.healthy if row is None else ChargerStatus(row["status"])
 

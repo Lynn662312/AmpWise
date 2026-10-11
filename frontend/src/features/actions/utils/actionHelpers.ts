@@ -1,9 +1,13 @@
-import type { Action, IssueType, Urgency } from "@/features/actions/types"
+import type { Action, ActionStatus, IssueType, Urgency } from "@/features/actions/types"
 import type { ChargingStation } from "@/features/map/types"
 import { getTimeZone } from "@/lib/simulationConfig"
 export { formatCurrency } from "@/lib/simulationConfig"
 
 export const urgencyOrder: Record<Urgency, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+
+export function toUiStatus(state: Action["state"]): ActionStatus {
+  return state === "assigned" ? "assigned" : state === "done" ? "completed" : "pending"
+}
 
 export function formatDeadline(deadline: string | null) {
   if (!deadline) return "No fixed deadline"
@@ -29,7 +33,7 @@ export function resolveStationName(stationId: string, stations: readonly Chargin
 }
 
 export function resolveStationLocation(stationId: string, stations: readonly ChargingStation[]) {
-  return stations.find(({ id }) => id === stationId)?.location ?? "Station location unavailable"
+  return stations.find(({ id }) => id === stationId)?.location ?? stationId
 }
 
 export function matchesAction(action: Action, search: string, issues: IssueType[], urgency: Urgency | "all", stations: readonly ChargingStation[]) {

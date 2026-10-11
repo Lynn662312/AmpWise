@@ -30,12 +30,20 @@
   ],
   "demo_times": [
     {
-      "label": "Quiet Sunday",
-      "time": "2020-02-23T07:00:00-08:00"
+      "label": "Safety faults",
+      "time": "2020-01-10T07:00:00-08:00"
+    },
+    {
+      "label": "Most chargers down",
+      "time": "2020-02-04T07:00:00-08:00"
     },
     {
       "label": "Weekday morning rush",
       "time": "2020-02-25T07:00:00-08:00"
+    },
+    {
+      "label": "Quiet Sunday",
+      "time": "2020-02-23T07:00:00-08:00"
     }
   ]
 }

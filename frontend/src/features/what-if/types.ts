@@ -15,7 +15,12 @@ export type WhatIfResult = {
   after_wait_min: number
   before_revenue_rm: number
   after_revenue_rm: number
+  // Money at risk (estimated unserved sessions x price). Sent by the API; the local sample data has none.
+  before_at_risk_rm?: number
+  after_at_risk_rm?: number
   summary: string
 }
 
 export type SimulationResponse = WhatIfResult & { source: "api" | "mock" }
+
+export type SavedScenario = { id: string; name: string; request: WhatIfRequest; result: WhatIfResult }

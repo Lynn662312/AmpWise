@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.schemas.common import WaitLevel
+from app.schemas.common import ChargerStatus, WaitLevel
 
 
 class Station(BaseModel):
@@ -16,6 +16,13 @@ class Station(BaseModel):
     predicted_wait_min: float
     level: WaitLevel
     open_issue_count: int
+
+
+class StationCharger(BaseModel):
+    charger_id: str
+    station_id: str
+    power_kw: float
+    status: ChargerStatus
 
 
 class ForecastSlot(BaseModel):

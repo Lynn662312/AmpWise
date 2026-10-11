@@ -5,7 +5,7 @@ from typing import Any
 
 from app.core.errors import bad_request, not_found
 from app.schemas import WhatIfRequest
-from app.services.classifier import latest_health, working_chargers
+from app.services.classifier import classify_charger, latest_health, working_chargers
 from app.services.data_loader import DataStore
 from app.services.priority import HORIZON_HOURS, outlook, upcoming_slots
 
@@ -17,25 +17,33 @@ def _compare(
     before = outlook(data, slots, chargers_before)
     after = outlook(data, slots, chargers_after)
 
-    # Revenue = sessions that actually charge (arrivals minus the cars that give up).
-    arrivals = float(slots["arrivals"].sum())
+    # Revenue = the sessions the chargers can serve x revenue per session. The wait plays no part in it.
     rm_per_session = data.params["rm_per_session"]
-    before_revenue = (arrivals - before["lost"]) * rm_per_session
-    after_revenue = (arrivals - after["lost"]) * rm_per_session
+    before_revenue = before["served"] * rm_per_session
+    after_revenue = after["served"] * rm_per_session
+    more_served = round(after["served"] - before["served"], 1)
 
-    if before == after:
-        summary = f"{what} does not change the queue over the next {HORIZON_HOURS} hours."
-    else:
-        summary = (
-            f"{what} cuts the peak wait over the next {HORIZON_HOURS} hours from "
-            f"{before['peak_wait_min']:.0f} to {after['peak_wait_min']:.0f} minutes and protects about "
-            f"{data.meta['currency']} {after_revenue - before_revenue:,.0f}."
+    changes = []
+    if after["avg_wait_min"] != before["avg_wait_min"]:
+        changes.append(f"cuts the average wait from {before['avg_wait_min']:.1f} to {after['avg_wait_min']:.1f} minutes")
+    if more_served > 0:
+        changes.append(
+            f"serves an estimated {more_served:.1f} more sessions "
+            f"(about {data.meta['currency']} {after_revenue - before_revenue:,.0f} of estimated revenue at risk)"
         )
+    if changes:
+        summary = f"{what} {' and '.join(changes)} over the next {HORIZON_HOURS} hours."
+    else:
+        summary = f"{what} does not change the queue or the sessions served over the next {HORIZON_HOURS} hours."
     return {
-        "before_wait_min": before["peak_wait_min"],
-        "after_wait_min": after["peak_wait_min"],
+        # The average wait per arriving car: the peak is usually at the cap both before and after.
+        "before_wait_min": before["avg_wait_min"],
+        "after_wait_min": after["avg_wait_min"],
         "before_revenue_rm": round(before_revenue, 2),
         "after_revenue_rm": round(after_revenue, 2),
+        # The clearer pair to show: the two totals above are nearly equal for most actions.
+        "before_at_risk_rm": round(before["unserved"] * rm_per_session, 2),
+        "after_at_risk_rm": round(after["unserved"] * rm_per_session, 2),
         "summary": summary,
     }
 
@@ -55,7 +63,7 @@ def simulate_fix(data: DataStore, station_id: str, charger_id: str, time: dateti
         raise not_found(f"Charger {charger_id} does not exist at {station_id}")
 
     n_working = working_chargers(data, station_id, time)
-    is_faulty = health["status"] != "healthy"
+    is_faulty = classify_charger(data, charger_id, time).value != "healthy"
     label = f"Fixing Charger {charger_id.rsplit('_c', 1)[-1]} at {station} now"
     return _compare(data, station_id, time, n_working, n_working + int(is_faulty), label)
 

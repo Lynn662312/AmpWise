@@ -16,7 +16,8 @@ export type ApiMeta = {
   time_range: ApiTimeRange
   festive_periods: { name: string; start: string; end: string }[]
   demo_times: { label: string; time: string }[]
-  assumptions: { rm_per_session: number; max_tolerable_wait_min: number; avg_charge_min: number }
+  backtest_weeks?: { value: string; label: string }[]
+  assumptions: { rm_per_session: number; avg_charge_min: number }
 }
 
 export type ApiHealth = {
@@ -69,6 +70,19 @@ export type ApiChargerHealth = {
   evidence: string[]
   series: ApiPowerRatioPoint[]
   degraded_since: string | null
+}
+
+export type ApiChargerEvent = {
+  time: string
+  source: "sensor" | "driver"
+  message: string
+}
+
+export type ApiStationCharger = {
+  charger_id: string
+  station_id: string
+  power_kw: number
+  status: ApiChargerHealth["status"]
 }
 
 export type ApiBacktestResult = BacktestResult

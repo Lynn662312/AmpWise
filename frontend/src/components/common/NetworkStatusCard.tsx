@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, CircleAlert, MessageCircleWarning, PlugZap, ShieldAlert, Wrench } from "lucide-react"
+import { Activity, AlertTriangle, CircleAlert, MessageCircleWarning, PlugZap, ShieldAlert } from "lucide-react"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
 import { Card } from "@/components/ui/card"
 import { IssueBadge } from "@/features/actions/components/IssueBadge"
@@ -19,7 +19,7 @@ type NetworkStatusCardProps = {
   className?: string
 }
 
-const alertIcons = { safety_fault: ShieldAlert, degraded: Activity, connector_fault: PlugZap, user_reported: MessageCircleWarning, site_issue: Wrench, congestion: AlertTriangle } as const
+const alertIcons = { safety_fault: ShieldAlert, degraded: Activity, connector_fault: PlugZap, user_reported: MessageCircleWarning, congestion: AlertTriangle } as const
 
 export function NetworkStatusCard({ onlineStations, totalStations, uptime, alerts, alertsLoading = false, alertsError = false, stationDataLoading = false, stationDataError = false, onAlertSelect, className }: NetworkStatusCardProps) {
   const critical = alerts.some(({ issue_type, urgency }) => issue_type === "safety_fault" && urgency === "critical")

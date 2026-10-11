@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // AmpWise has no client authentication. Only the backend Admin SDK may
+    // access Firestore, and Admin SDK requests bypass these client rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -57,8 +57,7 @@ def check(data_dir: str) -> list[str]:
             problems.append(f"{station.station_id}: n_chargers is {station.n_chargers} but health.parquet has {found} chargers")
 
     chargers = set(data.health["charger_id"])
-    reports = pd.concat([data.user_reports, data.site_reports])
-    for name, df in (("fault_labels", data.fault_labels), ("user_reports", reports)):
+    for name, df in (("fault_labels", data.fault_labels), ("user_reports", data.user_reports)):
         unknown = set(df["charger_id"]) - chargers
         if unknown:
             problems.append(f"{name}.parquet has charger ids missing from health.parquet: {sorted(unknown)[:5]}")
