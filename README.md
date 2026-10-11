@@ -14,8 +14,7 @@
   [![Python](https://img.shields.io/badge/Python_3.12-3776AB?style=flat-square&logo=python&logoColor=white)](render.yaml)
   [![LightGBM](https://img.shields.io/badge/LightGBM-Forecasting-8BC34A?style=flat-square)](ml/model/model1_lgbm.txt)
 
-  [Live application](https://ampwise.vercel.app) · [API documentation](https://portpulse-ampwise-api.onrender.com/docs) · [API contract](docs/api_contract.md)
-  <!-- When the pitch deck is ready, add: · [Pitch deck](YOUR_SLIDE_URL) -->
+  [Live application](https://ampwise.vercel.app) · [Pitch deck](docs/AmpWise%20Pitch.pdf) · [API documentation](https://portpulse-ampwise-api.onrender.com/docs) · [API contract](docs/api_contract.md)
 </div>
 
 ## Live deployment
@@ -26,8 +25,7 @@
 | **Backend API** | [portpulse-ampwise-api.onrender.com](https://portpulse-ampwise-api.onrender.com/api/health) | Live on Render |
 | **Interactive API docs** | [OpenAPI / Swagger UI](https://portpulse-ampwise-api.onrender.com/docs) | Available |
 | **Action and scenario storage** | Firebase Firestore | Connected through the backend |
-
-> **Pitch deck:** A presentation link can be added to the quick links above when the slides are ready.
+| **Pitch deck** | [View PDF](docs/AmpWise%20Pitch.pdf) · [PowerPoint source](docs/AmpWise%20Pitch.pptx) | Included in the repository |
 
 ## Overview
 
