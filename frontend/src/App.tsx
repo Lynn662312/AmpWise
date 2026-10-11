@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react"
-import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom"
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom"
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { Bolt, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Sun, TrendingUp, X } from "lucide-react"
+import { Bolt, ChevronRight, ClipboardCheck, Gauge, LayoutDashboard, Map, Menu, Moon, MoreHorizontal, Search, Sun, TrendingUp, X } from "lucide-react"
 import { EvStationIcon } from "@/components/icons/EvStationIcon"
 import { PlugIcon } from "@/components/icons/PlugIcon"
 import { NotificationBell } from "@/features/notifications/components/NotificationBell"
@@ -87,6 +87,8 @@ function AppShell() {
   const { theme, toggleTheme } = useTheme()
   const { selectedTime, setSelectedTime, selectedIsoTime, selectDemoTime, demoTimes, timeLabel, isReady, timeError } = useSimulatedTime()
   const { presentationMode } = useDemoMode()
+  const { pathname } = useLocation()
+  const currentRoute = routeMeta.find(({ match }) => match(pathname)) ?? routeMeta[0]
   // The free backend server sleeps when unused; say so when the first answer is slow.
   const [slowStart, setSlowStart] = useState(false)
   useEffect(() => { const timer = window.setTimeout(() => setSlowStart(true), 4000); return () => window.clearTimeout(timer) }, [])
