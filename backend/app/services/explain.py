@@ -5,6 +5,8 @@ from typing import Any
 
 from app.services.queueing import MAX_WAIT_MIN
 
+MIN_SESSIONS_AT_RISK = 0.1  # assumption: under a tenth of a session in 3 days counts as nothing at risk
+
 
 def _when(moment: datetime) -> str:
     """Thursday 6pm"""
@@ -22,7 +24,7 @@ def _queue(wait_min: float) -> str:
 def _at_risk(issue: dict[str, Any], lead: str = "An") -> str:
     """The sessions the station is forecast to be unable to serve: an estimate, not customers seen leaving."""
     sessions = issue["sessions_at_risk"]
-    if sessions < 0.1:
+    if sessions < MIN_SESSIONS_AT_RISK:
         return ""
     return f" {lead} estimated {sessions:.1f} sessions are at risk over the next 3 days."
 

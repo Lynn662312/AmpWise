@@ -2,7 +2,7 @@
 
 Read this before writing any code in this repo.
 
-> The contract is at v1.0 (`docs/api_contract.md`); its change log has the history from v0.1.
+> The contract is at v1.1 (`docs/api_contract.md`); its change log has the history from v0.1.
 > The first draft was about Malaysia (ringgit, `+08:00`, Hari Raya). Only the field names with `rm_` and the mock-mode examples are left of it.
 
 ## What we are building
@@ -66,7 +66,7 @@ docs/             api_contract.md
 | arrivals | cars arriving at a station in a slot (from ML 1) |
 | n_working | chargers not flagged faulty, plus the faulty ones whose action an operator marked done |
 | wait | M/M/c (Erlang C) expected wait from arrivals, avg charge time, n_working |
-| unserved sessions | cars forecast to arrive while every working charger is busy; a served car holds its charger for the average charge time. An estimate, not customers seen leaving |
+| unserved sessions | cars forecast to arrive while every working charger is busy; a served car holds its charger for the average charge time. Averaged over 500 random versions of the forecast, because real cars arrive in bunches. An estimate, not customers seen leaving |
 | rm_at_risk | estimated revenue at risk, in `meta.currency` (USD; the `rm_` prefix is from the first draft): unserved sessions over the next 72 hours that fixing the issue would serve × `rm_per_session` |
 | issue types | safety_fault, degraded, connector_fault, user_reported, congestion, chronic_undercapacity, underused |
 | priority | safety_fault first; then every charger and station issue by rm_at_risk (ties: driver reports); underused last |

@@ -15,13 +15,16 @@ from app.services.classifier import (
     working_chargers,
 )
 from app.services.data_loader import DataStore
-from app.services.explain import make_reason
-from app.services.queueing import SLOT_MIN, predict_wait, served_by_occupancy
+from app.services.explain import MIN_SESSIONS_AT_RISK, make_reason
+from app.services.queueing import SLOT_MIN, expected_unserved, predict_wait
 
 HORIZON_HOURS = 72  # how far ahead rm_at_risk looks
-HIGH_RM = 1000.0  # assumption: urgency limits
-MEDIUM_RM = 200.0
+# Assumption: urgency limits, in sessions at risk over the 72 hours. They were money limits made for the
+# dummy data (1000 and 200), which nothing on the real data ever reached, so every action read "low".
+HIGH_SESSIONS = 10.0
+MEDIUM_SESSIONS = 1.0
 MIN_REPORTS = 2  # assumption: one driver report alone is not enough to send a technician
+LIKELY_UNSERVED = 0.05  # assumption: a slot "fills up" from 0.05 expected unserved sessions (about 1 chance in 20)
 
 RECOMMENDED_ACTIONS: dict[str, str] = {
     "safety_fault": "Take offline and inspect",
@@ -65,26 +68,26 @@ def outlook(data: DataStore, slots: pd.DataFrame, chargers: int) -> dict[str, An
     """Sessions served and not served, and the peak queue, across the slots with this many chargers working.
 
     Served and unserved follow the chargers' occupancy (a car needs a free charger), not the wait.
+    Unserved is the average over many random versions of the forecast, because real cars arrive in bunches.
     """
     served = unserved = peak_wait = queue_minutes = arrivals_total = 0.0
     first_unserved = peak_time = None
     if slots.empty:
-        served_each: list[float] = []
+        missed_each: list[float] = []
         avg_charge_min = 0.0
     else:
         station_id, start = slots["station_id"].iloc[0], slots["slot_start"].iloc[0]
         avg_charge_min = charge_min(data, station_id)
         earlier = earlier_arrivals(data, station_id, start)
-        served_each = served_by_occupancy(list(slots["arrivals"]), avg_charge_min, chargers, earlier)
-    for slot_start, arrivals, served_now in zip(slots["slot_start"], slots["arrivals"], served_each):
+        missed_each = expected_unserved(list(slots["arrivals"]), avg_charge_min, chargers, earlier)
+    for slot_start, arrivals, missed in zip(slots["slot_start"], slots["arrivals"], missed_each):
         wait = predict_wait(arrivals, avg_charge_min, chargers)
         if peak_time is None or wait > peak_wait:
             peak_wait, peak_time = wait, slot_start.to_pydatetime()
-        missed = max(0.0, arrivals - served_now)
-        if missed > 1e-9 and first_unserved is None:
+        if missed >= LIKELY_UNSERVED and first_unserved is None:
             first_unserved = slot_start.to_pydatetime()
         unserved += missed
-        served += served_now
+        served += max(0.0, arrivals - missed)
         queue_minutes += arrivals * wait
         arrivals_total += arrivals
     return {
@@ -120,9 +123,9 @@ def score_issue(issue: dict[str, Any]) -> tuple[int, float, int]:
 def _urgency(issue: dict[str, Any]) -> str:
     if issue["issue_type"] == "safety_fault":
         return "critical"
-    if issue["rm_at_risk"] >= HIGH_RM:
+    if issue["sessions_at_risk"] >= HIGH_SESSIONS:
         return "high"
-    return "medium" if issue["rm_at_risk"] >= MEDIUM_RM else "low"
+    return "medium" if issue["sessions_at_risk"] >= MEDIUM_SESSIONS else "low"
 
 
 def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[str, Any]]:
@@ -172,7 +175,7 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
         full = outlook(data, slots, int(station.n_chargers))
         # A queue with every car still served costs no session, so it is shown on the map but not listed.
         # This also covers congestion that disappears once the faulty chargers are fixed.
-        nothing_at_risk = station_issue != IssueType.underused and full["unserved"] <= 1e-9
+        nothing_at_risk = station_issue != IssueType.underused and full["unserved"] < MIN_SESSIONS_AT_RISK
         if not nothing_at_risk:
             issues.append({
                 **full,
@@ -185,6 +188,8 @@ def _station_issues(data: DataStore, station: Any, time: datetime) -> list[dict[
             })
 
     for issue in issues:
+        if issue["sessions_at_risk"] < MIN_SESSIONS_AT_RISK:
+            issue["sessions_at_risk"] = 0.0
         issue["rm_at_risk"] = issue["sessions_at_risk"] * data.params["rm_per_session"]
         issue["station_id"] = station.station_id
         issue["station_name"] = station.name

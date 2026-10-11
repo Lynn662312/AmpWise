@@ -4,13 +4,18 @@
 > This is the single source of truth between backend, frontend and ML.
 > Change this file first (and tell the team), then change code.
 
-Version: v1.0 · 2026-10-11
+Version: v1.1 · 2026-10-11
 
 > **v0.3 — the data is now US (ACN dataset, California), not Malaysia.**
 > - **Time:** station local time with its offset, e.g. `2019-12-24T09:00:00-08:00`. The data covers 2019-12-01 to 2020-02-29; always read the real range from `meta.time_range`.
 > - **Money:** USD. Field names keep the `rm_` prefix for now (`rm_at_risk`, `rm_per_session`, …); read the currency from `meta.currency`.
 > - **Festive:** no longer a focus. `is_festive` and `meta.festive_periods` still exist and only label US public holidays (ML's `is_holiday`); no demand multiplier is applied. The demo is about the weekday morning rush.
 > - The examples below still show the earlier Malaysian placeholders (names, dates, `+08:00`, RM). They are kept on purpose: they are exactly what mock mode (`MOCK=1`) returns. The field names and shapes are the same on the real data.
+>
+> **v1.1 — money at risk counts cars arriving in bunches, and an action can be opened again.**
+> - `rm_at_risk` and the what-if money no longer treat the forecast as smooth averages. The next 72 hours are replayed 500 times with whole cars arriving at random around the forecast, and the unserved sessions are averaged. See "Estimated revenue at risk" in section 4. The field names and shapes are unchanged; the numbers change.
+> - `PATCH /api/actions/{action_id}/status` also accepts `open`.
+> - Waiting times and the backtest are unchanged.
 >
 > **v1.0 — the optional parts are built: marking done changes the numbers, demo reset, saved what-if runs.**
 > - A charger action marked `done` makes that charger count as working again (station numbers, waits, the other actions' money). See `PATCH /api/actions/{action_id}/status`.
@@ -162,8 +167,8 @@ interface Action {
   charger_id: string | null;
   recommended_action: string;      // short label: "Schedule maintenance"
   rm_at_risk: number;              // v0.6: estimated revenue at risk over the next 72 hours (see section 4)
-  deadline: string | null;         // v0.6: first slot where demand is above capacity; "now" for a safety fault
-  urgency: Urgency;
+  deadline: string | null;         // first slot in which a car is likely to find every charger busy (v1.1: 0.05 expected unserved sessions or more); "now" for a safety fault
+  urgency: Urgency;                // critical = safety fault; else high from 10 sessions at risk, medium from 1, low below (v1.1)
   reason: string;                  // template sentence, always present, no AI
   report_count: number;            // v0.4: driver reports in the last 7 days (0 for station issues)
   first_reported_at: string | null; // v0.4: time of the earliest of those reports
@@ -338,6 +343,12 @@ So a car is unserved only when it arrives and every working charger is busy. A s
 | `congestion`, `chronic_undercapacity` | unserved with every installed charger working | sessions at risk × `rm_per_session` |
 | `underused` | — | 0 |
 
+**Cars arrive in bunches (v1.1).** The forecast is an average, for example 0.4 cars in a half hour. Walked through as it is, a station with a little spare room never fills up, although on real days two or three cars do come together and one finds every charger busy. So the walk above is done 500 times: each time, every slot gets a whole number of cars drawn at random around its forecast (Poisson, the same assumption the queueing model makes), and the unserved sessions are averaged. The draws depend only on the forecast, with a fixed seed, so the same question always gets the same answer and two charger counts are compared on the very same cars.
+
+Checked on the current data by replaying the cars that really arrived (`arrivals_actual`) over the three months: one charger down at the 4-charger garage costs 18 sessions. The forecast walked as it is said 4; with random arrivals it says 22. At the 52-charger garage the three numbers are 24, 8 and 12. At the two garages that never fill up, all three are 0.
+
+Under 0.1 session at risk counts as nothing: the action shows `rm_at_risk` 0, and a `congestion` or `chronic_undercapacity` issue below it is not listed.
+
 These are estimates of sessions the station cannot serve, not observed customers who left. In text, call them "estimated unserved sessions", "sessions at risk" and "estimated revenue at risk".
 
 Waiting times are not part of this: they still come from the queueing model, which looks at each half hour on its own and so overstates the wait in a short burst. A station can therefore show a long wait and no unserved sessions.
@@ -401,14 +412,14 @@ Rules for the backend (judges will ask how the AI is controlled):
 
 ### PATCH `/api/actions/{action_id}/status`
 
-Body: `{ "state": "assigned" | "done" }` → Response `200`: `Action` (updated). Stored in Firestore `actions_status/{action_id}`. `404` for an action id that was never listed.
+Body: `{ "state": "open" | "assigned" | "done" }` → Response `200`: `Action` (updated). `open` (v1.1) puts the action back, for example after a charger was marked done by mistake. Stored in Firestore `actions_status/{action_id}`. `404` for an action id that was never listed.
 
 A charger action marked `done` counts as working again in later calls (v1.0):
 
 - The charger is `healthy` in `/api/stations/{id}/chargers`, and the station's `n_working`, waits and forecast include it. The other actions at that station are valued with it working.
 - The action itself stays in `/api/actions` with `state: "done"` and the reason and `rm_at_risk` it had before the repair. It no longer counts in the station's `open_issue_count`.
 - `/api/chargers/{id}/health` and `/events` do not change: they show what the sensors reported.
-- Moving the action back to `assigned` undoes this.
+- Moving the action back to `assigned` or `open` undoes this.
 
 An action id carries no date, so a state is kept for that charger and issue type at every simulated time. `POST /api/demo/reset` puts everything back.
 
@@ -451,6 +462,8 @@ v0.6: revenue = sessions served over the next 72 hours × `rm_per_session`, with
 ### ★ GET `/api/backtest?week=`
 
 `week` is optional. Response `200`: `BacktestResult`
+
+v1.1: the backtest is unchanged. It still walks the forecast as it is, without the random arrivals of `rm_at_risk`, so the numbers already reported for a week stay the same.
 
 v0.6: `rm_protected` = (baseline unserved sessions − our unserved sessions) × `rm_per_session`. `queue_minutes_saved` and the daily waits still come from the queueing model.
 
@@ -594,6 +607,7 @@ service cloud.firestore {
 
 | Date | Change | By |
 | --- | --- | --- |
+| 2026-10-11 | v1.1 `rm_at_risk` and what-if money average 500 random versions of the forecast (cars arrive in bunches) instead of walking the forecast as it is; under 0.1 session counts as nothing at risk; urgency limits are 10 and 1 sessions at risk; `PATCH .../status` accepts `open`; waits and backtest unchanged | |
 | 2026-10-11 | v1.0 a charger action marked `done` counts as working again (it was written here but not built); `POST /api/demo/reset` and `POST` / `GET /api/scenarios` built, with a name length and a cap of 30 saved runs; "No login" note in section 6; `VITE_ACTION_STATUS_ENABLED` also switches reset and saved runs | |
 | 2026-10-11 | v0.9 served and unserved sessions follow charger occupancy (a car is unserved only when every charger is busy), replacing the per-half-hour capacity rule of v0.6; `WhatIfResult` gains `before_at_risk_rm` and `after_at_risk_rm` | |
 | 2026-10-11 | v0.8 new `GET /api/chargers/{charger_id}/events` and `charger_events.parquet`; what-if wait fields are now the average wait over 72 hours, not the peak | |

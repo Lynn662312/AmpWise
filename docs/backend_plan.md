@@ -13,21 +13,22 @@ Field names and endpoints follow `docs/api_contract.md`. Stages are in build ord
 | 6 | Frontend integration (on ML's real data) | Done and live; walkthrough by a person still to do |
 | 7 | ML integration (Colab outputs) | Done |
 | 8 | Deploy, Firestore and optional extras | Done for the demo: backend on Render, frontend on Vercel, action status on Firestore |
-| 9 | Contract v1.0: done counts as working, demo reset, saved what-if runs, website fixes | Built and tested on the branch `sleep`; not merged, so not live |
+| 9 | Contract v1.0: done counts as working, demo reset, saved what-if runs, website fixes | Built and tested on the branch `sleep` (pushed); not merged, so not live |
+| 10 | Contract v1.1: money at risk counts cars arriving in bunches; an action can be opened again | Built and tested on `sleep`; not committed yet |
 
-## What is left (updated 2026-10-11, morning, after contract v1.0)
+## What is left (updated 2026-10-11, after contract v1.1)
 
 Live: the website is at `https://ampwise.vercel.app` and the API at `https://portpulse-ampwise-api.onrender.com/api`. Both deploy from the branch `main`, which has contract v0.9 (pull request #8). Checked on 2026-10-11: every page opens on a computer and on a phone-sized screen, and the API answers with the v0.9 fields.
 
-Not live yet, on the branch `sleep` (committed and pushed, not merged): everything in Stage 9. In short, contract v1.0 (a charger marked done works again, demo reset, saved what-if runs) and the website fixes.
+Not live yet, on the branch `sleep`: Stage 9 (committed and pushed, not merged) and Stage 10 (in the working folder, not committed). In short, contract v1.0 (a charger marked done works again, demo reset, saved what-if runs), the website fixes, and contract v1.1 (the money at risk is no longer 0 where sessions really are at risk).
 
-On it: 100 backend tests and 1 ML test pass, the frontend type-checks and builds, and every page was opened and clicked through in a browser against a local backend. That backend used ML's real data, with Firestore replaced by a list in memory, so the live database was not touched.
+On it: 103 backend tests and 1 ML test pass, the frontend type-checks and builds, and every page was opened and clicked through in a browser against a local backend. That backend used ML's real data, with Firestore replaced by a list in memory, so the live database was not touched.
 
 To do, in order:
 
 1. [x] Commit the uncommitted work on `final` and push it.
 2. [x] Open a pull request from `final` into `main` and merge it (pull request #8).
-3. [ ] Review the branch `sleep` (Stage 9 lists the files), open a pull request into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
+3. [ ] Review the branch `sleep` (Stages 9 and 10 list the files), commit Stage 10, open a pull request into `main` and merge it. Render and Vercel redeploy by themselves in a few minutes.
 4. [ ] Right after that deploy, open the live Actions page and click "Reset demo" once. The live database still holds test clicks (one action done, two assigned). From v1.0 a charger marked done counts as working, so without the reset JPL's charger 9 would count as working on the days it is faulty.
 5. [ ] Open the live site and walk every page once by hand: overview, map, a station, a charger (look for "Why this charger is flagged"), actions (mark one done, then "Reset demo"), what-if (run one repair at JPL on "Most chargers down" and save it), results. The first call after a quiet period is slow, because the free server sleeps; the page now says so.
 6. [ ] Give the group the new backtest numbers (Stage 7, "Known limits"): the money figure changed with v0.9.
@@ -135,7 +136,7 @@ How money at risk is calculated (v0.9), walking through the forecast slot by slo
 - Busy chargers = the sessions that started within the last charge time and are still charging. Served = the smaller of the arrivals and the free chargers. Unserved = the rest.
 - Charger flagged by its sensors: `p_fault` × (unserved now − unserved with one more charger working) × `rm_per_session`.
 - Driver-reported charger with healthy sensors: (unserved with one charger fewer − unserved now) × `rm_per_session`.
-- Congestion or chronic undercapacity: unserved with every installed charger working × `rm_per_session`. If that is zero the station is not listed: a queue in which every car is still served costs no session. It still shows on the map.
+- Congestion or chronic undercapacity: unserved with every installed charger working × `rm_per_session`. If that is under 0.1 session (v1.1) the station is not listed: a queue in which every car is still served costs no session. It still shows on the map.
 - Underused: 0.
 
 These are estimated unserved sessions, not customers seen leaving. The reason sentence says "an estimated N sessions are at risk".
@@ -147,10 +148,10 @@ What needs storing: see the table in Stage 8. In short, nothing from the ML file
 Assumptions to confirm with the team:
 
 - `rm_at_risk` looks 72 hours ahead.
-- A broken charger costs nothing while the other chargers are never all busy; it costs one session each time a car arrives and would have found only that charger free.
-- A congestion or capacity issue is listed only when sessions are at risk with every charger working. That also leaves out congestion that disappears once the faulty chargers are fixed.
-- Deadline = the first slot in which a car is forecast to find every charger busy; a safety fault's deadline is now. No deadline when that never happens.
-- Urgency: safety fault is `critical`; otherwise `high` from RM 1,000, `medium` from RM 200, else `low`.
+- A broken charger costs nothing while the other chargers are never all busy; it costs one session each time a car arrives and would have found only that charger free. Since v1.1 this is averaged over 500 random versions of the forecast (Stage 10), because it is the bunches of cars that fill a station.
+- A congestion or capacity issue is listed only when at least 0.1 session is at risk with every charger working. That also leaves out congestion that disappears once the faulty chargers are fixed.
+- Deadline = the first slot in which a car is likely to find every charger busy (0.05 expected unserved sessions or more, about 1 chance in 20); a safety fault's deadline is now. No deadline when that never happens.
+- Urgency: safety fault is `critical`; otherwise `high` from 10 sessions at risk, `medium` from 1, else `low` (v1.1). The first limits were RM 1,000 and RM 200, made for the dummy data; nothing on the real data reached them, so every action read "low".
 - `/api/meta` takes `time_range`, `assumptions` and `backtest_weeks` from the data, and the name, currency, holidays and demo times from `meta.json`, which the converter writes.
 
 ## Stage 4 — AI advice — Built; optional, the app works without a key
@@ -295,9 +296,9 @@ What the real data shows:
 
 - Holidays are quiet. These are workplace garages, so demand peaks on weekday mornings around 7am and drops on holidays.
 - Capacity differs a lot: two garages have 54 and 24 chargers and almost never queue; South Wilson has 4; JPL has 52 but 222-minute sessions, so the model shows it over capacity at the morning peak.
-- With the occupancy rule (v0.9) a broken charger costs money only when the station fills up, which here means JPL at the weekday morning rush. Of the 40 charger-days with a sensor fault, 9 show money at risk, at most USD 23. The Caltech garages with 24 and 54 chargers are under 10% busy and never fill, so losing one charger changes nothing there. And most faults are repaired within a day or two.
+- A broken charger costs money only when the station fills up, which here means JPL and South Wilson on weekdays. With v1.1, of the 40 charger-days with a sensor fault, 13 show money at risk, at most USD 17 (with v0.9: 9, at most USD 23). The Caltech garages with 24 and 54 chargers never fill, so losing one charger changes nothing there. And most faults are repaired within a day or two.
 - The different charger counts in ML's two deliveries (the forecast covers every charger, `acn_synth` a 20% sample) are not the cause. Checked on 2026-10-11 by scaling every station to its sensor chargers with demand scaled the same: money at risk for sensor faults over the three months is USD 171 against USD 160, and the backtest avoids 2.9 estimated unserved sessions against 2.6. So ML does not need to rebuild anything for this.
-- Over the 89 days checked at 7am, the list showed a sensor fault on 40 charger-days and a driver-reported charger on 162. A station capacity or congestion issue was listed on 16 days (only when sessions are at risk, v0.9). The first item was a driver-reported charger on 59 days, a capacity or congestion issue on 13, a sensor fault on 8 and a safety fault on 6.
+- Over the 89 days checked at 7am with v1.1, the list showed a sensor fault on 40 charger-days and a driver-reported charger on 163 (66 of them with money at risk). A station capacity or congestion issue was listed on 81 days (16 with v0.9), because with cars arriving in bunches JPL and South Wilson lose sessions on most weekdays even with every charger working. The first item was a capacity or congestion issue on 70 days, a driver-reported charger on 12, a safety fault on 6 and a sensor fault on 1. The list's total at risk is USD 0 on 7 days, USD 15 on a typical day and USD 130 at most.
 
 Known limits:
 
@@ -306,6 +307,7 @@ Known limits:
 - Power does not drop before a fault in this data (it follows how the cars charge), so the charger chart does not show a decline, and the reason for a `degraded` charger quotes the charger's own message instead of a power percentage.
 - The sentiment model only knows the wording in this data set. A comment in completely new words can be read wrongly, so it has to be re-run (and re-checked) when ML sends new feedback.
 - The occupancy rule works on half-hour steps with the station's average charge time: every car is treated as charging for that average, and a car that finds every charger busy is counted as unserved, not as waiting for the next free one.
+- A car frees its charger when its charge ends. In ML's session file the cars stay plugged in about twice as long (370 to 470 minutes against 110 to 220), so a garage is fuller than the rule assumes. Using the average plugged-in time instead was tested and is worse: it says 242 of JPL's 3,978 real sessions could not have happened. A fair fix needs the share of cars still plugged in after each half hour, per station, from the converter. Tested, it roughly doubles the cost of a charger down at South Wilson (18 to 34 sessions over the three months) and leaves JPL as it is. Not built: it adds a file and a contract change for a small difference.
 - Waiting times still look at each half hour on its own, so the wait in a short burst is overstated (JPL reads 120 minutes at the morning rush). A station can show a long wait and no unserved sessions.
 - The backtest gain is small on this data. In its week (3 to 9 Feb 2020, nine real faults) it saves 412 queue minutes and protects USD 10 (1.0 estimated unserved session). Over the whole three months it saves 549 queue minutes, and 1.0 of 18.2 estimated unserved sessions out of about 8,490 forecast. The reasons are the ones under "What the real data shows": quiet garages, and faults that are repaired within a day or two anyway. Of the 33 real faults we know 25 on the day they start and never notice 3.
 - Backtest precision is 1.0 because the status comes from the charger's own fault message; recall is 0.8 because the sensors cannot see the faults only drivers report.
@@ -425,3 +427,58 @@ Not done, and why:
 
 - Writing to the live database was not tested: the checks used a stand-in, so the first real "Reset demo" and "Save this run" happen after the merge (step 5 at the top). Reading from the live database with the new code was tested.
 - The walkthrough "as a person" and "run the full demo twice" stay open: they are for a person on the deployed site.
+
+## Stage 10 — Contract v1.1: money at risk, and opening an action again — Built on `sleep`, not committed
+
+In plain words: the Actions page showed "Estimated amount at risk USD 0" at the first demo time. Part of that was real and part was a flaw in how the forecast was used. The flaw is fixed; the real part is explained below.
+
+What was checked, and what was found:
+
+| Checked | Finding |
+| --- | --- |
+| The data: `forecasts.parquet`, `stations.parquet`, ML's `acn_sessions.csv` | Correct. Two garages are small against their demand (South Wilson: 4 chargers, 5 cars a weekday; JPL: 52 chargers, 55 to 80 cars). The other two (54 and 24 chargers, 30 and 25 cars) never fill up, so a broken charger there really costs no session. |
+| The first demo time (Friday 10 Jan 2020, 7am) | Its two safety faults are at a garage that never fills and at JPL on a Friday, and the 72 hours that follow are mostly a weekend. A low amount there is real. |
+| The function `served_by_occupancy` (who gets a charger) | Correct for the cars it is given. |
+| How the forecast is fed into it | **The flaw.** The forecast is an average (0.4 cars in a half hour) and was walked through as it is. A station with a little spare room then never fills, although real cars come in ones and twos. Replaying the cars that really arrived shows it: one charger down at South Wilson for the three months costs 18 sessions, and the forecast said 4. At JPL: 24 against 8. |
+| How long a car holds its charger | A second, smaller flaw, not fixed: see "Known limits" in Stage 7. |
+| The urgency limits | Made for the dummy data (RM 1,000 and RM 200). Nothing on the real data reached them, so every action that was not a safety fault read "low". |
+
+What was built:
+
+- [x] `expected_unserved` in `app/services/queueing.py`: the next 72 hours are replayed 500 times with whole cars arriving at random around the forecast (Poisson, which the queue model already assumes), and the unserved sessions are averaged. The seed is fixed, so the same question always gets the same answer. `outlook` in `app/services/priority.py` uses it, and so do `rm_at_risk` and the what-if money.
+- [x] Under 0.1 session at risk counts as nothing (`MIN_SESSIONS_AT_RISK` in `app/services/explain.py`): the action shows 0 and a station issue below it is not listed.
+- [x] Urgency limits in sessions: `high` from 10 sessions at risk, `medium` from 1.
+- [x] An action can be opened again: `PATCH .../status` accepts `open`, and the "Pending" button in the action drawer now works with the live API. "Reset demo" (Stage 9) opens all of them at once.
+- [x] Tests: three new ones in `tests/test_queueing.py`; `tests/test_priority.py`, `tests/test_demo_state.py` and `tests/test_firestore_actions.py` updated (103 pass).
+
+What the numbers are now, at 7am:
+
+| Demo time | Total at risk before | Now | The actions with money |
+| --- | --- | --- | --- |
+| Safety faults (Fri 10 Jan) | USD 0 | USD 38 | JPL congestion 25, a driver-reported charger at South Wilson 5, the JPL safety fault 5, South Wilson capacity 3 |
+| Most chargers down (Tue 4 Feb) | USD 35 | USD 125 | JPL capacity 95 (13 before), charger 10 at JPL 17 (23 before), South Wilson capacity 13 |
+| Weekday morning rush (Tue 25 Feb) | USD 69 | USD 128 | JPL capacity 107 (49 before), charger 10 at JPL 17 (20 before), South Wilson capacity 4 |
+| Quiet Sunday (23 Feb) | USD 55 | USD 76 | JPL congestion on Monday 55 (35 before), two chargers at JPL 9 and 8 (10 and 10 before), South Wilson capacity 4 |
+
+How good the new estimate is, over the three months, in sessions lost when one charger is down the whole time:
+
+| Garage | Replay of the cars that really came | Forecast as it is (before) | Forecast with random arrivals (now) |
+| --- | --- | --- | --- |
+| South Wilson (4 chargers) | 18 | 4 | 22 |
+| JPL (52 chargers) | 24 | 8 | 12 |
+| California Garage 01 and 02 | 0 | 0 | 0 |
+
+So it is close at South Wilson and still low at JPL, where ML's forecast is about 7% under the real arrivals. For a single charger at JPL the amount went slightly down (17 against 20 to 23): the old rule jumped when the forecast crossed the number of chargers, the new one is smoother.
+
+What did not change: waiting times everywhere (map, station page, what-if "59.1 to 57.2 minutes"), and the whole backtest (412 queue minutes saved, USD 10 protected), because those numbers are on the slides.
+
+Assumptions and limits to confirm with the team:
+
+- The amounts are still small. This is what the data says: a session is worth USD 10, and a garage with a free charger loses nothing when another one breaks. A charger down at JPL costs about USD 17 over three days at the busiest time.
+- Station capacity is now on the list on 81 of the 89 days (16 before) and is the first item on 70 of them, mostly "Add chargers" at JPL. That follows from the ranking rule (most money at risk first). It cannot be checked against what really happened, because a car that found the garage full left no session in the data.
+- The backtest still uses the forecast as it is. With random arrivals its week would read USD 5.68 protected in place of USD 10: lower, because the old rule happened to cross a limit that week. The rule on the Results page and the rule on the Actions page are therefore not the same until the team decides which number to show.
+- 500 runs: `/api/actions` answers in about 0.25 s (0.15 s before).
+
+Files to review: `app/services/queueing.py` (`expected_unserved`, `_walk`), `app/services/priority.py` (`outlook`, `_urgency`, the two limits), `app/services/explain.py`, `app/schemas/action.py`; in the frontend `src/features/actions/components/ActionDetailDrawer.tsx` and `src/services/action-service.ts`.
+
+How to test: `pytest -v` shows 103 passed. With the backend running locally, open the Actions page: "Safety faults" shows USD 38 at risk and "Weekday morning rush" USD 128. Open an action, choose "Completed", find it again under the "Completed" filter and choose "Pending": it is back on the active list.

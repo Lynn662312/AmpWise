@@ -38,7 +38,7 @@ class Advice(BaseModel):
 
 
 class ActionStatusRequest(BaseModel):
-    state: Literal["assigned", "done"]
+    state: Literal["open", "assigned", "done"]
 
 
 class DemoResetRequest(BaseModel):

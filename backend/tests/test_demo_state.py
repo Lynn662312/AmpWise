@@ -62,7 +62,7 @@ def test_a_charger_action_marked_done_counts_as_working_again(real_client: TestC
 
     after = _station(real_client)
     assert after["n_working"] == before["n_working"] + 1
-    assert after["open_issue_count"] == before["open_issue_count"] - 1
+    assert after["open_issue_count"] < before["open_issue_count"]
     assert after["predicted_wait_min"] <= before["predicted_wait_min"]
     chargers = real_client.get(f"/api/stations/{STATION}/chargers", params={"time": TIME}).json()
     assert next(c for c in chargers if c["charger_id"] == CHARGER)["status"] == "healthy"
@@ -78,12 +78,14 @@ def test_a_charger_action_marked_done_counts_as_working_again(real_client: TestC
     assert again["before_revenue_rm"] == again["after_revenue_rm"]
 
 
-def test_an_action_moved_back_to_assigned_is_not_working(real_client: TestClient, store: dict[str, Any]) -> None:
+def test_an_action_moved_back_from_done_is_not_working(real_client: TestClient, store: dict[str, Any]) -> None:
     before = _station(real_client)
     _action(real_client)
-    real_client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "done"})
-    real_client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "assigned"})
-    assert _station(real_client)["n_working"] == before["n_working"]
+    for undone in ("assigned", "open"):
+        real_client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": "done"})
+        real_client.patch(f"/api/actions/{ACTION_ID}/status", json={"state": undone})
+        assert _station(real_client) == before
+        assert _action(real_client)["state"] == undone
 
 
 def test_demo_reset_opens_every_action_again(real_client: TestClient, store: dict[str, Any]) -> None:

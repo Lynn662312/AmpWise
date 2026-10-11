@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.services.data_loader import DataStore
 from app.schemas import IssueType
 from app.services.priority import HORIZON_HOURS, build_action_list, earlier_arrivals, score_issue, upcoming_slots
-from app.services.queueing import served_by_occupancy
+from app.services.queueing import expected_unserved
 
 MYT = timezone(timedelta(hours=8))
 NORMAL_TUESDAY = datetime(2026, 3, 17, 14, 0, tzinfo=MYT)
@@ -27,9 +27,11 @@ def test_order_is_safety_then_money_at_risk_then_underused(data: DataStore) -> N
     actions = build_action_list(data, DAY_BEFORE_RAYA)
     types = [a["issue_type"] for a in actions]
     assert types[0] == "safety_fault" and types[-1] == "underused"
-    # The three stations with a long queue at the festive peak can still serve every car once their
-    # chargers work, so they are not listed as congestion: only issues with sessions at risk are.
-    assert sorted(types[1:-1]) == ["chronic_undercapacity", "connector_fault", "degraded", "user_reported"]
+    # The three stations with a long queue at the festive peak are listed as congestion: with cars
+    # arriving in bunches, some find every charger busy even when all of them work.
+    assert sorted(types[1:-1]) == [
+        "chronic_undercapacity", "congestion", "congestion", "congestion", "connector_fault", "degraded", "user_reported",
+    ]
     # After the safety fault, chargers and stations are one list: most money at risk first.
     money = [a["rm_at_risk"] for a in actions[1:-1]]
     assert money == sorted(money, reverse=True)
@@ -43,8 +45,7 @@ def _unserved(data: DataStore, station_id: str, chargers: int) -> float:
     """Estimated unserved sessions over the next 72 hours, worked out here from the forecast."""
     slots = upcoming_slots(data, station_id, DAY_BEFORE_RAYA, HORIZON_HOURS)
     earlier = earlier_arrivals(data, station_id, slots["slot_start"].iloc[0])
-    served = served_by_occupancy(list(slots["arrivals"]), CHARGE_MIN, chargers, earlier)
-    return slots["arrivals"].sum() - sum(served)
+    return sum(expected_unserved(list(slots["arrivals"]), CHARGE_MIN, chargers, earlier))
 
 
 def test_rm_at_risk_follows_the_occupancy_rule(data: DataStore) -> None:
@@ -71,7 +72,7 @@ def test_broken_charger_has_no_money_at_risk_when_the_others_can_serve_everyone(
     health = data.health.copy()
     health.loc[health["charger_id"] == "stn_001_c1", ["status", "p_fault"]] = ["degraded", 0.9]
     quiet = dataclasses.replace(data, health=health)
-    assert _unserved(quiet, "stn_001", 5) == 0.0
+    assert _unserved(quiet, "stn_001", 5) < 0.1  # under a tenth of a session counts as nothing
 
     broken = next(a for a in build_action_list(quiet, DAY_BEFORE_RAYA) if a["id"] == "degraded:stn_001:stn_001_c1")
     assert broken["rm_at_risk"] == 0.0
